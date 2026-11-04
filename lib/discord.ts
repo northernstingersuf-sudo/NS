@@ -4,7 +4,7 @@
  * Webhook-URL och roll-ID är hemligheter/konfiguration på servern och loggas aldrig.
  */
 
-export type NoticeKind = "order_created" | "payment_reported";
+export type NoticeKind = "order_created" | "payment_reported" | "payment_verified";
 export type NoticeOrder = {
   id: string;
   order_number: string;
@@ -31,11 +31,21 @@ export function buildDiscordPayload(kind: NoticeKind, order: NoticeOrder, opts: 
   if (items.length > 1000) items = `${items.slice(0, 990).replace(/\n[^\n]*$/, "")}\n…`;
 
   const adminUrl = opts.siteUrl ? `${opts.siteUrl.replace(/\/+$/, "")}/admin/ordrar/${order.id}` : null;
-  const title = kind === "order_created" ? "Ny beställning – inväntar Swishbetalning" : "Kunden har rapporterat betalning – kontroll krävs";
+  const TITLES: Record<NoticeKind, string> = {
+    order_created: "Ny beställning – inväntar Swishbetalning",
+    payment_reported: "Kunden har rapporterat betalning – kontroll krävs",
+    payment_verified: "Betalning verifierad – redo att packa",
+  };
+  const PAYMENT: Record<NoticeKind, string> = {
+    order_created: "Ej verifierad",
+    payment_reported: "Rapporterad av kund – ej verifierad",
+    payment_verified: "Verifierad av admin ✅",
+  };
+  const title = TITLES[kind];
   const fields = [
     { name: "Ordernummer", value: order.order_number, inline: true },
     { name: "Totalt", value: kr(order.total_ore), inline: true },
-    { name: "Betalning", value: kind === "order_created" ? "Ej verifierad" : "Rapporterad av kund – ej verifierad", inline: true },
+    { name: "Betalning", value: PAYMENT[kind], inline: true },
     { name: "Produkter", value: items || "–" },
     { name: "Delsumma", value: kr(order.subtotal_ore), inline: true },
     ...(order.discount_ore > 0 ? [{ name: "Rabatt", value: `−${kr(order.discount_ore)}`, inline: true }] : []),
@@ -46,7 +56,7 @@ export function buildDiscordPayload(kind: NoticeKind, order: NoticeOrder, opts: 
     // Riktig rollmention: texten <@&ID> OCH allowed_mentions.roles. parse: [] hindrar alla andra mentions.
     content: `<@&${opts.roleId}> ${title} – ${order.order_number}`,
     allowed_mentions: { parse: [] as string[], roles: [opts.roleId] },
-    embeds: [{ title: cut(title, 250), color: kind === "order_created" ? 0x0a0a0a : 0xd97706, timestamp: new Date(order.created_at).toISOString(), fields }],
+    embeds: [{ title: cut(title, 250), color: kind === "payment_verified" ? 0x16a34a : kind === "order_created" ? 0x0a0a0a : 0xd97706, timestamp: new Date(order.created_at).toISOString(), fields }],
   };
 }
 

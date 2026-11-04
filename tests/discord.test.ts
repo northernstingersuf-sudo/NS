@@ -26,6 +26,14 @@ test("rapporterad betalning ger separat rubrik och ändrar inget påstående om 
   assert.equal(p.embeds[0].title, "Kunden har rapporterat betalning – kontroll krävs");
   assert.ok(JSON.stringify(p).includes("ej verifierad"));
 });
+test("verifierad betalning ger grön notis med rätt rubrik och status", () => {
+  const p = buildDiscordPayload("payment_verified", order, { roleId: "123456789012345678" });
+  assert.equal(p.embeds[0].title, "Betalning verifierad – redo att packa");
+  assert.equal(p.embeds[0].color, 0x16a34a);
+  const json = JSON.stringify(p);
+  assert.ok(json.includes("Verifierad av admin") && !json.includes("Ej verifierad"));
+  assert.ok(p.content.includes("NS-2026-001000"));
+});
 test("ingen persondata i payloaden (adress, e-post, telefon)", () => {
   const json = JSON.stringify(buildDiscordPayload("order_created", order, { roleId: "123456789012345678" }));
   assert.ok(!/@[a-z0-9-]+\.[a-z]{2,}/i.test(json.replace("@everyone", "")));

@@ -2,7 +2,7 @@
 
 ## Klart i denna version (steg 4–7 i utvecklingsbriefen)
 
-- **Migration `0006_orders_checkout.sql`** (ändrar inga tidigare migrationer):
+- **Migrationer `0006_orders_checkout.sql` och `0007_notify_payment_verified.sql`** (ändrar inga tidigare migrationer):
   - Rättar att `product_images.variant_id` saknades. Katalogfrågan och produktsidan läste kolumnen, så frågan gav fel och katalogen blev tom.
   - Order: ordernummer `NS-ÅÅÅÅ-NNNNNN`, idempotensnyckel, unik gästtoken, locale, rabattkod.
   - Betalning: `reported_at` (kundrapport), `verified_at/by/amount` (manuell verifiering).
@@ -13,7 +13,7 @@
   - `admin_save_product` bevarar nu variant-ID:n (tidigare raderades varianter vid varje sparning).
 - **Kassa** `/kassa`: gästköp, servern räknar allt. Stängd tills fraktpris, Swish-nummer och service role är konfigurerade. Idempotensnyckel per korg+formulär. Honeypot och best-effort rate limit.
 - **Orderstatus/betalning** `/order/[token]`: lokalt genererad Swish-QR (`qrcode`, inga anrop till Swish), appknapp (best-effort, mobil), nummer/belopp/referens med kopiera, "Jag har betalat" (rapporterar bara). "Betald" visas endast när admin verifierat.
-- **Discord**: webhook från servern, riktig rollmention + `allowed_mentions`, ingen persondata, dedupe och retry via `notification_log`, fel stoppar aldrig ordern.
+- **Discord**: tre notiser (ny order, kund rapporterat betalning, betalning verifierad av admin; migration `0007`). Webhook från servern, riktig rollmention + `allowed_mentions`, ingen persondata, dedupe och retry via `notification_log`, fel stoppar aldrig ordern.
 - **Admin**: Beställningar (sök/status/datum), orderdetalj (verifiera betalning med beloppskontroll, statusflöde, spårning, administrativ återbetalning, händelsehistorik, Discord-status + "försök igen"), Lager (loggad justering), Inställningar (frakt + driftkontroll utan att visa hemligheter), dashboard med riktiga värden.
 
 ## Verifierat

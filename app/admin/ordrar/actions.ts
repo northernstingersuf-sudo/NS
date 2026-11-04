@@ -33,7 +33,9 @@ export async function verifyPayment(formData: FormData) {
   if (ore === null || ore <= 0) back(id, "fel", "Ange det mottagna beloppet i kronor, t.ex. 318 eller 318,50.");
   const { error } = await sb.rpc("admin_verify_payment", { p_order_id: id, p_received_ore: ore });
   if (error) back(id, "fel", explain(error.message));
-  back(id, "ok", "Betalningen är verifierad och ordern markerad som betald.");
+  // Notis efter lyckad verifiering. Fel här påverkar aldrig verifieringen; status syns på orderns sida.
+  const outcome = await notifyOrder(id, "payment_verified");
+  back(id, "ok", outcome === "failed" ? "Betalningen är verifierad. Discord-notisen misslyckades, se status nedan." : "Betalningen är verifierad och ordern markerad som betald.");
 }
 
 export async function updateOrder(formData: FormData) {
@@ -65,7 +67,7 @@ export async function retryNotification(formData: FormData) {
   const { sb } = await requireAdmin();
   const id = val(formData, "id");
   const kind = val(formData, "kind");
-  if (!UUID.test(id) || (kind !== "order_created" && kind !== "payment_reported")) redirect("/admin/ordrar");
+  if (!UUID.test(id) || (kind !== "order_created" && kind !== "payment_reported" && kind !== "payment_verified")) redirect("/admin/ordrar");
   const { data } = await sb.from("orders").select("id").eq("id", id).maybeSingle(); // bekräftar adminåtkomst till ordern
   if (!data) redirect("/admin/ordrar");
   const outcome = await notifyOrder(id, kind);
