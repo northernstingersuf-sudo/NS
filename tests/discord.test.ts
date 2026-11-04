@@ -34,6 +34,13 @@ test("verifierad betalning ger grön notis med rätt rubrik och status", () => {
   assert.ok(json.includes("Verifierad av admin") && !json.includes("Ej verifierad"));
   assert.ok(p.content.includes("NS-2026-001000"));
 });
+test("skickad order: blå notis med spårningsnummer, utan persondata", () => {
+  const p = buildDiscordPayload("order_shipped", { ...order, tracking_number: "SE123456789" }, { roleId: "123456789012345678" });
+  assert.equal(p.embeds[0].title, "Order skickad");
+  assert.equal(p.embeds[0].color, 0x2563eb);
+  assert.ok(JSON.stringify(p).includes("SE123456789"));
+  assert.ok(JSON.stringify(buildDiscordPayload("order_shipped", order, { roleId: "123456789012345678" })).includes("Ej angivet"));
+});
 test("ingen persondata i payloaden (adress, e-post, telefon)", () => {
   const json = JSON.stringify(buildDiscordPayload("order_created", order, { roleId: "123456789012345678" }));
   assert.ok(!/@[a-z0-9-]+\.[a-z]{2,}/i.test(json.replace("@everyone", "")));

@@ -109,7 +109,7 @@ export default async function AdminOrder({ params, searchParams }: { params: Pro
           <h2 id="discord" className="text-lg font-semibold">Discord-notiser</h2>
           {!notes?.length ? <p className="mt-3 text-sm text-mute">Inga notiser registrerade.</p> : <ul className="mt-3 space-y-3 text-sm">{notes.map((n) => (
             <li key={n.kind} className="flex items-start justify-between gap-3">
-              <span>{n.kind === "order_created" ? "Ny order" : n.kind === "payment_reported" ? "Betalning rapporterad" : "Betalning verifierad"}: <b>{n.status === "sent" ? "skickad" : n.status === "failed" ? "misslyckades" : "pågår"}</b> ({n.attempts} försök){n.last_error ? <span className="block font-mono text-xs text-red-700">{n.last_error}</span> : null}</span>
+              <span>{n.kind === "order_created" ? "Ny order" : n.kind === "payment_reported" ? "Betalning rapporterad" : n.kind === "payment_verified" ? "Betalning verifierad" : "Order skickad"}: <b>{n.status === "sent" ? "skickad" : n.status === "failed" ? "misslyckades" : "pågår"}</b> ({n.attempts} försök){n.last_error ? <span className="block font-mono text-xs text-red-700">{n.last_error}</span> : null}</span>
               {n.status !== "sent" && <form action={retryNotification}><input type="hidden" name="id" value={o.id} /><input type="hidden" name="kind" value={n.kind} /><button className="border border-ink px-3 py-1 text-xs">Försök igen</button></form>}
             </li>))}</ul>}
         </section>

@@ -46,6 +46,10 @@ export async function updateOrder(formData: FormData) {
   if (status && !(STATUSES as readonly string[]).includes(status)) back(id, "fel", "Ogiltig status.");
   const { error } = await sb.rpc("admin_update_order", { p_order_id: id, p_status: status || null, p_tracking: val(formData, "tracking") || null });
   if (error) back(id, "fel", explain(error.message));
+  if (status === "shipped") {
+    const outcome = await notifyOrder(id, "order_shipped");
+    if (outcome === "failed") back(id, "ok", "Ordern är markerad som skickad. Discord-notisen misslyckades, se status nedan.");
+  }
   back(id, "ok", "Ordern är uppdaterad.");
 }
 
@@ -67,7 +71,7 @@ export async function retryNotification(formData: FormData) {
   const { sb } = await requireAdmin();
   const id = val(formData, "id");
   const kind = val(formData, "kind");
-  if (!UUID.test(id) || (kind !== "order_created" && kind !== "payment_reported" && kind !== "payment_verified")) redirect("/admin/ordrar");
+  if (!UUID.test(id) || (kind !== "order_created" && kind !== "payment_reported" && kind !== "payment_verified" && kind !== "order_shipped")) redirect("/admin/ordrar");
   const { data } = await sb.from("orders").select("id").eq("id", id).maybeSingle(); // bekräftar adminåtkomst till ordern
   if (!data) redirect("/admin/ordrar");
   const outcome = await notifyOrder(id, kind);

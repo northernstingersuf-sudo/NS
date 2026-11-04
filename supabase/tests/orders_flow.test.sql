@@ -262,6 +262,7 @@ select finish_notification((select id from tok), 'order_created', true, null);
 select pg_temp.ok(not claim_notification((select id from tok), 'order_created'), 'skickad notis kan inte skickas igen');
 select pg_temp.ok(claim_notification((select id from tok), 'payment_reported'), 'olika notistyper räknas separat');
 select pg_temp.ok(claim_notification((select id from tok), 'payment_verified'), 'notistypen payment_verified accepteras');
+select pg_temp.ok(claim_notification((select id from tok), 'order_shipped'), 'notistypen order_shipped accepteras');
 reset role;
 select pg_temp.ok((select status||'/'||attempts from notification_log where kind = 'order_created') = 'sent/2', 'notislogg: sent efter 2 försök');
 

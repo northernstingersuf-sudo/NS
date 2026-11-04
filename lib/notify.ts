@@ -29,7 +29,7 @@ export async function notifyOrder(orderId: string, kind: NoticeKind): Promise<No
 
     const { data: order, error: orderErr } = await sb
       .from("orders")
-      .select("id,order_number,created_at,subtotal_ore,discount_ore,shipping_ore,total_ore,order_items(name,variant,quantity,unit_price_ore)")
+      .select("id,order_number,created_at,subtotal_ore,discount_ore,shipping_ore,total_ore,tracking_number,order_items(name,variant,quantity,unit_price_ore)")
       .eq("id", orderId)
       .maybeSingle();
     if (orderErr || !order) { await finish(false, "order_not_found"); return "failed"; }

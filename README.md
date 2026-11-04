@@ -15,6 +15,7 @@ Next.js App Router, React, TypeScript, Tailwind CSS och Supabase. Projektet utve
    - `0005_catalog_admin.sql`
    - `0006_orders_checkout.sql`
    - `0007_notify_payment_verified.sql`
+   - `0008_notify_order_shipped.sql`
 5. Starta utvecklingsservern med `npm run dev`.
 6. Skapa ett konto via `/logga-in`. Ge sedan kontot adminroll från Supabase SQL Editor:
    ```sql
@@ -60,7 +61,7 @@ Swish används **utan Swish API**: QR skapas lokalt, appknappen är best-effort,
 ## Tester
 
 - `npm run typecheck`, `npm test` (enhetstester), `npm run build`.
-- Databastester: kör `supabase/tests/00_local_bootstrap.sql`, migrationerna 0001–0007 och `supabase/tests/orders_flow.test.sql` mot en TOM lokal PostgreSQL. Aldrig mot Supabase-produktion.
+- Databastester: kör `supabase/tests/00_local_bootstrap.sql`, migrationerna 0001–0008 och `supabase/tests/orders_flow.test.sql` mot en TOM lokal PostgreSQL. Aldrig mot Supabase-produktion.
 
 Detaljerad status och kvarvarande arbete: [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md).
 

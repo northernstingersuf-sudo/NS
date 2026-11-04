@@ -4,7 +4,7 @@
  * Webhook-URL och roll-ID är hemligheter/konfiguration på servern och loggas aldrig.
  */
 
-export type NoticeKind = "order_created" | "payment_reported" | "payment_verified";
+export type NoticeKind = "order_created" | "payment_reported" | "payment_verified" | "order_shipped";
 export type NoticeOrder = {
   id: string;
   order_number: string;
@@ -13,6 +13,7 @@ export type NoticeOrder = {
   discount_ore: number;
   shipping_ore: number;
   total_ore: number;
+  tracking_number?: string | null;
   items: { name: string; variant: string | null; quantity: number; unit_price_ore: number }[];
 };
 
@@ -35,11 +36,13 @@ export function buildDiscordPayload(kind: NoticeKind, order: NoticeOrder, opts: 
     order_created: "Ny beställning – inväntar Swishbetalning",
     payment_reported: "Kunden har rapporterat betalning – kontroll krävs",
     payment_verified: "Betalning verifierad – redo att packa",
+    order_shipped: "Order skickad",
   };
   const PAYMENT: Record<NoticeKind, string> = {
     order_created: "Ej verifierad",
     payment_reported: "Rapporterad av kund – ej verifierad",
     payment_verified: "Verifierad av admin ✅",
+    order_shipped: "Verifierad av admin ✅",
   };
   const title = TITLES[kind];
   const fields = [
@@ -50,13 +53,14 @@ export function buildDiscordPayload(kind: NoticeKind, order: NoticeOrder, opts: 
     { name: "Delsumma", value: kr(order.subtotal_ore), inline: true },
     ...(order.discount_ore > 0 ? [{ name: "Rabatt", value: `−${kr(order.discount_ore)}`, inline: true }] : []),
     { name: "Frakt", value: kr(order.shipping_ore), inline: true },
+    ...(kind === "order_shipped" ? [{ name: "Spårningsnummer", value: order.tracking_number ? plain(order.tracking_number) : "Ej angivet", inline: true }] : []),
     ...(adminUrl ? [{ name: "Adminlänk", value: adminUrl }] : []),
   ];
   return {
     // Riktig rollmention: texten <@&ID> OCH allowed_mentions.roles. parse: [] hindrar alla andra mentions.
     content: `<@&${opts.roleId}> ${title} – ${order.order_number}`,
     allowed_mentions: { parse: [] as string[], roles: [opts.roleId] },
-    embeds: [{ title: cut(title, 250), color: kind === "payment_verified" ? 0x16a34a : kind === "order_created" ? 0x0a0a0a : 0xd97706, timestamp: new Date(order.created_at).toISOString(), fields }],
+    embeds: [{ title: cut(title, 250), color: kind === "order_shipped" ? 0x2563eb : kind === "payment_verified" ? 0x16a34a : kind === "order_created" ? 0x0a0a0a : 0xd97706, timestamp: new Date(order.created_at).toISOString(), fields }],
   };
 }
 
