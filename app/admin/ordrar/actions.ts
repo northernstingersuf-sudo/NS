@@ -38,19 +38,37 @@ export async function verifyPayment(formData: FormData) {
   back(id, "ok", outcome === "failed" ? "Betalningen är verifierad. Discord-notisen misslyckades, se status nedan." : "Betalningen är verifierad och ordern markerad som betald.");
 }
 
-export async function updateOrder(formData: FormData) {
+/**
+ * Statusbyte. Statusen skickas som bunden parameter från knappen (inte via knappens name/value),
+ * och resultatet kontrolleras mot databasen så att ett uteblivet byte aldrig rapporteras som lyckat.
+ */
+export async function updateOrderTo(status: string, formData: FormData) {
   const { sb } = await requireAdmin();
   const id = val(formData, "id");
   if (!UUID.test(id)) redirect("/admin/ordrar");
-  const status = val(formData, "status");
   if (status && !(STATUSES as readonly string[]).includes(status)) back(id, "fel", "Ogiltig status.");
-  const { error } = await sb.rpc("admin_update_order", { p_order_id: id, p_status: status || null, p_tracking: val(formData, "tracking") || null });
-  if (error) back(id, "fel", explain(error.message));
+  const tracking = val(formData, "tracking");
+
+  const before = await sb.from("orders").select("status,tracking_number").eq("id", id).maybeSingle();
+  if (!before.data) back(id, "fel", "Ordern hittades inte eller så saknas behörighet.");
+
+  const { error } = await sb.rpc("admin_update_order", { p_order_id: id, p_status: status || null, p_tracking: tracking || null });
+  if (error) {
+    console.error(`[admin] admin_update_order misslyckades (${error.code}): ${error.message}`);
+    back(id, "fel", explain(error.message));
+  }
+
+  const after = await sb.from("orders").select("status,tracking_number").eq("id", id).maybeSingle();
+  if (status && after.data?.status !== status)
+    back(id, "fel", `Statusen ändrades inte (är fortfarande "${after.data?.status ?? "okänd"}"). Kontrollera att alla migrationer, även 0009, är körda.`);
+  if (!status && !tracking) back(id, "fel", "Inget att spara: ange ett spårningsnummer eller välj en statusändring.");
+  if (!status && after.data?.tracking_number === before.data?.tracking_number) back(id, "ok", "Spårningsnumret var oförändrat.");
+
   if (status === "shipped") {
     const outcome = await notifyOrder(id, "order_shipped");
     if (outcome === "failed") back(id, "ok", "Ordern är markerad som skickad. Discord-notisen misslyckades, se status nedan.");
   }
-  back(id, "ok", "Ordern är uppdaterad.");
+  back(id, "ok", status ? `Ordern är nu: ${status === "shipped" ? "skickad" : status === "packed" ? "packad" : status === "delivered" ? "levererad" : "avbruten"}.` : "Spårningsnumret är sparat.");
 }
 
 /** Registrerar ENDAST en administrativ återbetalningsstatus. Pengarna återbetalas manuellt i Swish/bank. */

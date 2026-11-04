@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAdmin } from "@/lib/admin";
-import { registerRefund, retryNotification, updateOrder, verifyPayment } from "../actions";
+import { registerRefund, retryNotification, updateOrderTo, verifyPayment } from "../actions";
 
 export const metadata = { title: "Order – Admin", robots: { index: false, follow: false } };
 const sek = (ore: number) => new Intl.NumberFormat("sv-SE", { style: "currency", currency: "SEK", minimumFractionDigits: 2 }).format(ore / 100);
@@ -74,12 +74,12 @@ export default async function AdminOrder({ params, searchParams }: { params: Pro
 
         <section className={box} aria-labelledby="hantera">
           <h2 id="hantera" className="text-lg font-semibold">Hantera order</h2>
-          <form action={updateOrder} className="mt-3 space-y-3">
+          <form className="mt-3 space-y-3">
             <input type="hidden" name="id" value={o.id} />
             <label className="block text-xs text-mute">Spårningsnummer<input name="tracking" defaultValue={o.tracking_number ?? ""} maxLength={80} className={input} /></label>
             <div className="flex flex-wrap gap-2">
-              <button name="status" value="" className="border border-ink px-4 py-2 text-sm">Spara spårningsnummer</button>
-              {options.map((opt) => <button key={opt.value} name="status" value={opt.value} className={`px-4 py-2 text-sm ${opt.value === "cancelled" ? "border border-red-400 text-red-800" : "bg-ink text-paper"}`}>{opt.label}</button>)}
+              <button formAction={updateOrderTo.bind(null, "")} className="border border-ink px-4 py-2 text-sm">Spara spårningsnummer</button>
+              {options.map((opt) => <button key={opt.value} formAction={updateOrderTo.bind(null, opt.value)} className={`px-4 py-2 text-sm ${opt.value === "cancelled" ? "border border-red-400 text-red-800" : "bg-ink text-paper"}`}>{opt.label}</button>)}
             </div>
             {o.status === "pending" && <p className="text-xs text-mute">Betald kan en order bara bli via verifiering av betalningen.</p>}
             {pay?.status === "paid" && <p className="text-xs text-mute">Avbryter du en betald order: registrera även en återbetalning.</p>}

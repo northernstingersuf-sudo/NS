@@ -9,7 +9,7 @@ import { CartProvider } from "@/components/CartProvider";
 const sans = Inter({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://northernstingers.store"),
+  metadataBase: new URL("https://northernstingers.se"),
   title: { default: "Northern Stingers – fiske och livsstil", template: "%s | Northern Stingers" },
   description: "Egna fiskeprodukter, kläder och livsstilsprodukter från Northern Stingers.",
   icons: { icon: "/logo/n-black-on-white.webp" },
