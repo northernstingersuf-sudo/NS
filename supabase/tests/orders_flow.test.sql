@@ -266,6 +266,27 @@ select pg_temp.ok(claim_notification((select id from tok), 'order_shipped'), 'no
 reset role;
 select pg_temp.ok((select status||'/'||attempts from notification_log where kind = 'order_created') = 'sent/2', 'notislogg: sent efter 2 försök');
 
+-- ---- 11b. E-postlogg: dedupe, retry, åtkomst ----
+set role service_role;
+select pg_temp.ok(claim_email((select id from tok), 'order_confirmation'), 'första e-post-claim lyckas');
+select pg_temp.ok(not claim_email((select id from tok), 'order_confirmation'), 'andra claim (pågående) nekas, inga dubbelmejl');
+select finish_email((select id from tok), 'order_confirmation', false, 'email_http_500');
+select pg_temp.ok(claim_email((select id from tok), 'order_confirmation'), 'misslyckat mejl kan tas om');
+select finish_email((select id from tok), 'order_confirmation', true, null);
+select pg_temp.ok(not claim_email((select id from tok), 'order_confirmation'), 'skickat mejl skickas aldrig igen');
+select pg_temp.ok(claim_email((select id from tok), 'order_shipped'), 'olika mejltyper räknas separat');
+select pg_temp.fails($q$ select claim_email((select id from tok), 'newsletter') $q$, 'check', 'okänd mejltyp nekas av databasen');
+reset role;
+set request.jwt.claim.sub = ''; set role anon;
+select pg_temp.fails($q$ select claim_email((select id from tok), 'order_confirmation') $q$, '42501', 'anon kan inte anropa claim_email');
+select pg_temp.ok((select count(*) from email_log) = 0, 'anon ser inga mejlloggar');
+reset role;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000c1'; set role authenticated;
+select pg_temp.ok((select count(*) from email_log) = 0, 'kund ser inga mejlloggar');
+select pg_temp.fails($q$ select finish_email((select id from tok), 'order_confirmation', true, null) $q$, '42501', 'kund kan inte anropa finish_email');
+reset role;
+select pg_temp.ok((select status||'/'||attempts from email_log where kind = 'order_confirmation') = 'sent/2', 'e-postlogg: skickat efter 2 försök');
+
 -- ---- 12. admin_save_product bevarar variant-ID:n ----
 create temp table vid_before as select id, label from product_variants where product_id = (select p_ks from ids);
 select pg_temp.share();
@@ -299,6 +320,6 @@ select pg_temp.ok((select status::text from orders where id = (select (j->>'orde
 select pg_temp.ok((select quantity||'/'||reserved from inventory where product_id = (select p_fv from ids)) = '2/0', 'direktskickad order drar av lager (3/0 → 2/0)');
 
 -- ---- 13. RLS på nya tabeller ----
-select pg_temp.ok((select bool_and(relrowsecurity) from pg_class where relname in ('shop_settings','order_events','notification_log','stock_adjustments')), 'RLS på alla nya tabeller');
+select pg_temp.ok((select bool_and(relrowsecurity) from pg_class where relname in ('shop_settings','order_events','notification_log','stock_adjustments','email_log')), 'RLS på alla nya tabeller');
 
 \echo ALLA DB-TESTER GICK IGENOM

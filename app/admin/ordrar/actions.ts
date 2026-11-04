@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/admin";
 import { parseSekToOre } from "@/lib/money";
 import { notifyOrder } from "@/lib/notify";
+import { notifyEmail } from "@/lib/notify-email";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const val = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
@@ -34,7 +35,7 @@ export async function verifyPayment(formData: FormData) {
   const { error } = await sb.rpc("admin_verify_payment", { p_order_id: id, p_received_ore: ore });
   if (error) back(id, "fel", explain(error.message));
   // Notis efter lyckad verifiering. Fel här påverkar aldrig verifieringen; status syns på orderns sida.
-  const outcome = await notifyOrder(id, "payment_verified");
+  const [outcome] = await Promise.all([notifyOrder(id, "payment_verified"), notifyEmail(id, "payment_verified")]);
   back(id, "ok", outcome === "failed" ? "Betalningen är verifierad. Discord-notisen misslyckades, se status nedan." : "Betalningen är verifierad och ordern markerad som betald.");
 }
 
@@ -65,7 +66,7 @@ export async function updateOrderTo(status: string, formData: FormData) {
   if (!status && after.data?.tracking_number === before.data?.tracking_number) back(id, "ok", "Spårningsnumret var oförändrat.");
 
   if (status === "shipped") {
-    const outcome = await notifyOrder(id, "order_shipped");
+    const [outcome] = await Promise.all([notifyOrder(id, "order_shipped"), notifyEmail(id, "order_shipped")]);
     if (outcome === "failed") back(id, "ok", "Ordern är markerad som skickad. Discord-notisen misslyckades, se status nedan.");
   }
   back(id, "ok", status ? `Ordern är nu: ${status === "shipped" ? "skickad" : status === "packed" ? "packad" : status === "delivered" ? "levererad" : "avbruten"}.` : "Spårningsnumret är sparat.");
@@ -94,4 +95,16 @@ export async function retryNotification(formData: FormData) {
   if (!data) redirect("/admin/ordrar");
   const outcome = await notifyOrder(id, kind);
   back(id, outcome === "sent" ? "ok" : "fel", outcome === "sent" ? "Discord-notisen skickades." : outcome === "skipped" ? "Notisen är redan skickad eller pågår." : "Discord-notisen misslyckades igen. Se status nedan.");
+}
+
+/** Försök skicka ett misslyckat kundmejl igen. Redan skickade mejl skickas inte om. */
+export async function retryEmail(formData: FormData) {
+  const { sb } = await requireAdmin();
+  const id = val(formData, "id");
+  const kind = val(formData, "kind");
+  if (!UUID.test(id) || (kind !== "order_confirmation" && kind !== "payment_verified" && kind !== "order_shipped")) redirect("/admin/ordrar");
+  const { data } = await sb.from("orders").select("id").eq("id", id).maybeSingle();
+  if (!data) redirect("/admin/ordrar");
+  const outcome = await notifyEmail(id, kind);
+  back(id, outcome === "sent" ? "ok" : "fel", outcome === "sent" ? "Mejlet skickades." : outcome === "skipped" ? "Mejlet är redan skickat eller pågår." : "Mejlet misslyckades igen. Se status nedan.");
 }

@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createPublicClient } from "@/lib/supabase/public";
 import { createAdminClient, hasServiceRole } from "@/lib/supabase/admin";
 import { notifyOrder } from "@/lib/notify";
+import { notifyEmail } from "@/lib/notify-email";
 import { validateCheckout, describeOrderError } from "@/lib/checkout";
 import { normalizeSwishNumber } from "@/lib/swish";
 import { rateLimit } from "@/lib/rate-limit";
@@ -83,6 +84,7 @@ export async function placeOrder(raw: unknown): Promise<PlaceOrderResult> {
 
   const result = data as { order_id: string; guest_token: string; created: boolean };
   // Discord: bara för nyskapad order (replay skickar inget). Fel här påverkar aldrig ordern.
-  if (result.created) await notifyOrder(result.order_id, "order_created");
+  // Discord och kundmejl skickas parallellt. Fel i någon av dem påverkar aldrig ordern.
+  if (result.created) await Promise.all([notifyOrder(result.order_id, "order_created"), notifyEmail(result.order_id, "order_confirmation")]);
   return { ok: true, token: result.guest_token };
 }

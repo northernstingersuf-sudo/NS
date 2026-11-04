@@ -1,8 +1,10 @@
-# Implementation status – 4 november 2026
+# Implementation status – v11, 4 november 2026
+
+Se även `CHANGELOG.md` för vad som lagts till i vilken version.
 
 ## Klart i denna version (steg 4–7 i utvecklingsbriefen)
 
-- **Migrationer `0006_orders_checkout.sql` och `0007_notify_payment_verified.sql`** (ändrar inga tidigare migrationer):
+- **Migrationerna `0006`–`0010`** (ändrar inga tidigare migrationer):
   - Rättar att `product_images.variant_id` saknades. Katalogfrågan och produktsidan läste kolumnen, så frågan gav fel och katalogen blev tom.
   - Order: ordernummer `NS-ÅÅÅÅ-NNNNNN`, idempotensnyckel, unik gästtoken, locale, rabattkod.
   - Betalning: `reported_at` (kundrapport), `verified_at/by/amount` (manuell verifiering).
@@ -13,14 +15,21 @@
   - `admin_save_product` bevarar nu variant-ID:n (tidigare raderades varianter vid varje sparning).
 - **Kassa** `/kassa`: gästköp, servern räknar allt. Stängd tills fraktpris, Swish-nummer och service role är konfigurerade. Idempotensnyckel per korg+formulär. Honeypot och best-effort rate limit.
 - **Orderstatus/betalning** `/order/[token]`: lokalt genererad Swish-QR (`qrcode`, inga anrop till Swish), appknapp (best-effort, mobil), nummer/belopp/referens med kopiera, "Jag har betalat" (rapporterar bara). "Betald" visas endast när admin verifierat.
-- **Discord**: fyra notiser (ny order, kund rapporterat betalning, betalning verifierad, order skickad; migrationerna `0007`–`0009`, där 0009 tillåter betald → skickad utan packa-steg). Webhook från servern, riktig rollmention + `allowed_mentions`, ingen persondata, dedupe och retry via `notification_log`, fel stoppar aldrig ordern.
+- **Discord**: fyra notiser (ny order, kund rapporterat betalning, betalning verifierad, order skickad; migrationerna `0007` och `0008`). Webhook från servern, riktig rollmention + `allowed_mentions`, ingen persondata, dedupe och retry via `notification_log`, fel stoppar aldrig ordern.
 - **Admin**: Beställningar (sök/status/datum), orderdetalj (verifiera betalning med beloppskontroll, statusflöde, spårning, administrativ återbetalning, händelsehistorik, Discord-status + "försök igen"), Lager (loggad justering), Inställningar (frakt + driftkontroll utan att visa hemligheter), dashboard med riktiga värden.
 
 ## Verifierat
 
-- `npm run typecheck`: OK. `npm test`: 21/21 (Swish-format, Discord-payload, kassavalidering). `next build`: OK (med Google Fonts ersatt tillfälligt, eftersom byggmiljön saknade internet mot Google; ingen kodändring kvar).
+- `npm run typecheck`: OK. `npm test`: 30/30 (Swish-format, Discord-payload, kassavalidering). `next build`: OK (med Google Fonts ersatt tillfälligt, eftersom byggmiljön saknade internet mot Google; ingen kodändring kvar).
 - Databastest `supabase/tests/orders_flow.test.sql` mot tom lokal PostgreSQL 16 efter 0001–0006: alla kontroller gick igenom, bl.a. serverpris, idempotens, ingen överförsäljning, avbokning frigör lager/rabatt, kunder ser bara egna order, anon/kund kan inte anropa kundfunktioner eller adminfunktioner, kundrapport ändrar inte betalstatus, dubbelverifiering och fel belopp nekas, notisdedupe/retry, variant-ID bevaras.
 - Samtidighet med riktiga parallella sessioner: 8 samtidiga köp mot saldo 3 gav exakt 3 order (reserverat 3/3). 6 samtidiga anrop med samma nyckel gav 1 order och 1 reservation.
+
+## Bekräftat av ägaren i produktion
+
+- Statusknapparna i admin (packad, skickad, avbruten) fungerar efter v9 (bekräftat efter att rätt version deployats).
+- Order kan läggas och hanteras i admin.
+
+Inte uttryckligen bekräftat ännu: Swish-QR i telefon, Discord-notiserna mot din riktiga webhook, lagerreservation i skarp miljö.
 
 ## EJ verifierat (kräver din miljö)
 
@@ -28,6 +37,7 @@
 - Själva appen mot en riktig Supabase: anropen `rpc(...)` och sidorna har typkontrollerats och byggts men inte körts mot en databas.
 - **Swish i telefon.** Formatdetaljerna är hämtade från briefen och sekundära källor, inte från Swish specifikation: decimalkomma i beloppet och sista fältets (`lock_mask = 0`) betydelse. Skanna QR med Swish-appen på iOS och Android och kontrollera mottagare, belopp, referens. Justera i `lib/swish.ts` vid avvikelse. Appknappens länkformat är inofficiellt.
 - Discord: kräver riktig webhook, roll-ID och rätt att pinga rollen.
+- **E-post:** kräver Resend-konto, verifierad domän (SPF/DKIM) och API-nyckel. Utskicket är testat mot en fejkad Resend, inte mot den riktiga tjänsten. Kontrollera även att mejlen inte hamnar i skräppost och hur de ser ut i Gmail/Outlook/mobil.
 - Mobil/tillgänglighet, bildhantering och prestanda.
 
 ## Kända begränsningar
@@ -36,12 +46,13 @@
 - Order som skapades innan lagerspårning startade påverkar inte saldot.
 - Obetalda order håller reservation tills admin avbokar (ingen automatisk utgång).
 - Rate limiting är per serverinstans (in-memory). Komplettera med hostingens regler.
-- Inga e-postbekräftelser skickas. Gästen får en statuslänk.
+- E-post: bara tre transaktionsmejl. Inget mejl vid avbruten order eller återbetalning, och inget nytt mejl om kunden ändrar e-postadress. Mejlet bekräftar aldrig betalning innan admin verifierat.
 - Frakt är ett fast pris med valfri fri-fraktgräns, endast Sverige.
 
 ## Återstår
 
-- Bildhantering i admin (Supabase Storage), kategorihantering, kunder, rabattkoder (databasstöd finns, admin-UI saknas), recensionsmoderering, nyhetsbrevsexport.
+- Bildhantering i admin (Supabase Storage), kategorihantering, kunder, rabattkoder (databasstöd finns, admin-UI saknas), recensionsmoderering, nyhetsbrevsexport, mejl vid avbokning/återbetalning.
 - Svenska/engelska genom hela köpresan (nya sidor är svenska).
 - Admin-MFA, CSP, samtyckesstyrd analys/statistik, backup/återställningstest, juridiska texter.
 - Kundkonto: orderlänk till statussida.
+- Betald → skickad utan packa-steg är tillåtet (0009). Vill du kräva packning, ta bort `'shipped'` ur övergången i `admin_update_order`.

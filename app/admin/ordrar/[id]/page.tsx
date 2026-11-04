@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAdmin } from "@/lib/admin";
-import { registerRefund, retryNotification, updateOrderTo, verifyPayment } from "../actions";
+import { registerRefund, retryEmail, retryNotification, updateOrderTo, verifyPayment } from "../actions";
 
 export const metadata = { title: "Order – Admin", robots: { index: false, follow: false } };
 const sek = (ore: number) => new Intl.NumberFormat("sv-SE", { style: "currency", currency: "SEK", minimumFractionDigits: 2 }).format(ore / 100);
@@ -21,10 +21,11 @@ export default async function AdminOrder({ params, searchParams }: { params: Pro
   const { id } = await params;
   const sp = await searchParams;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
-  const [{ data: o }, { data: events }, { data: notes }] = await Promise.all([
+  const [{ data: o }, { data: events }, { data: notes }, { data: mails }] = await Promise.all([
     sb.from("orders").select("*,order_items(*),payments(*)").eq("id", id).maybeSingle(),
     sb.from("order_events").select("id,kind,detail,created_at").eq("order_id", id).order("created_at"),
     sb.from("notification_log").select("kind,status,attempts,last_error,sent_at").eq("order_id", id),
+    sb.from("email_log").select("kind,status,attempts,last_error,sent_at").eq("order_id", id),
   ]);
   if (!o) notFound();
   const pay = (o.payments as any[])[0];
@@ -104,6 +105,15 @@ export default async function AdminOrder({ params, searchParams }: { params: Pro
         <section className={box} aria-labelledby="historik">
           <h2 id="historik" className="text-lg font-semibold">Händelser</h2>
           <ol className="mt-3 space-y-2 text-sm">{(events ?? []).map((e) => <li key={e.id}><span className="text-mute">{new Date(e.created_at).toLocaleString("sv-SE")}</span> · {EVENT_SV[e.kind] ?? e.kind}{e.kind === "status_changed" && e.detail ? `: ${STATUS_SV[(e.detail as any).from]} → ${STATUS_SV[(e.detail as any).to]}` : ""}</li>)}</ol>
+        </section>
+        <section className={box} aria-labelledby="epost">
+          <h2 id="epost" className="text-lg font-semibold">Kundmejl</h2>
+          <p className="mt-1 text-xs text-mute">Till {o.email}</p>
+          {!mails?.length ? <p className="mt-3 text-sm text-mute">Inga mejl registrerade.</p> : <ul className="mt-3 space-y-3 text-sm">{mails.map((n) => (
+            <li key={n.kind} className="flex items-start justify-between gap-3">
+              <span>{n.kind === "order_confirmation" ? "Orderbekräftelse" : n.kind === "payment_verified" ? "Betalning mottagen" : "Order skickad"}: <b>{n.status === "sent" ? "skickat" : n.status === "failed" ? "misslyckades" : "pågår"}</b> ({n.attempts} försök){n.last_error ? <span className="block font-mono text-xs text-red-700">{n.last_error}</span> : null}</span>
+              {n.status !== "sent" && <form action={retryEmail}><input type="hidden" name="id" value={o.id} /><input type="hidden" name="kind" value={n.kind} /><button className="border border-ink px-3 py-1 text-xs">Försök igen</button></form>}
+            </li>))}</ul>}
         </section>
         <section className={box} aria-labelledby="discord">
           <h2 id="discord" className="text-lg font-semibold">Discord-notiser</h2>

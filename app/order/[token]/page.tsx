@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import QRCode from "qrcode";
 import CopyButton from "@/components/CopyButton";
 import { customerStatus, getOrderByToken, type CustomerStatus } from "@/lib/orders";
+import { isEmailConfigured } from "@/lib/notify-email";
 import { sek } from "@/lib/money";
 import { buildSwishAppLink, buildSwishHttpsLink, buildSwishQrPayload, normalizeSwishNumber } from "@/lib/swish";
 import { reportPaid } from "./actions";
@@ -101,7 +102,7 @@ export default async function OrderPage({ params, searchParams }: { params: Prom
           <div className="flex justify-between border-t border-line pt-2 text-base font-semibold"><dt>Totalt</dt><dd className="tabular-nums">{sek(order.total_ore)}</dd></div>
         </dl>
         <p className="mt-6 text-sm text-mute">Leverans till {[a.name, a.line1, a.line2, `${a.postal_code ?? ""} ${a.city ?? ""}`.trim()].filter(Boolean).join(", ")}</p>
-        <p className="mt-1 text-sm text-mute">Vi skickar inga automatiska e-postbekräftelser ännu. Spara den här sidans länk: den är din orderstatus (beställd med {order.email}).</p>
+        <p className="mt-1 text-sm text-mute">{isEmailConfigured() ? `Vi mejlar orderbekräftelse och statusuppdateringar till ${order.email}. Hittar du inget mejl, titta i skräpposten. ` : ""}Spara den här sidans länk: den är din orderstatus.</p>
       </section>
       <p className="mt-10 text-sm"><Link href="/produkter" className="underline">Fortsätt handla</Link></p>
     </div>

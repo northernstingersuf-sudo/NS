@@ -1,4 +1,5 @@
 import { requireAdmin } from "@/lib/admin";
+import { isValidFrom } from "@/lib/email";
 import { isValidRoleId, isValidWebhookUrl } from "@/lib/discord";
 import { hasServiceRole } from "@/lib/supabase/admin";
 import { normalizeSwishNumber } from "@/lib/swish";
@@ -20,6 +21,8 @@ export default async function Settings({ searchParams }: { searchParams: Promise
     ["Swish-nummer", !!swish, swish ? `SWISH_NUMBER (slutar på ${swish.slice(-3)})` : "SWISH_NUMBER"],
     ["Discord webhook-URL", isValidWebhookUrl(process.env.DISCORD_WEBHOOK_URL), "DISCORD_WEBHOOK_URL"],
     ["Discord roll-ID", isValidRoleId(process.env.DISCORD_ROLE_ID), "DISCORD_ROLE_ID"],
+    ["E-post: Resend API-nyckel", !!process.env.RESEND_API_KEY?.trim(), "RESEND_API_KEY"],
+    ["E-post: avsändare", isValidFrom(process.env.EMAIL_FROM), "EMAIL_FROM"],
     ["Sajtens URL (adminlänk i Discord)", !!process.env.NEXT_PUBLIC_SITE_URL, "NEXT_PUBLIC_SITE_URL"],
     ["Fraktpris angivet", Number.isInteger(ship?.flat_ore), "Formuläret nedan"],
   ];
