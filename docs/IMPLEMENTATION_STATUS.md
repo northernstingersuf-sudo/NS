@@ -13,7 +13,7 @@
   - `admin_save_product` bevarar nu variant-ID:n (tidigare raderades varianter vid varje sparning).
 - **Kassa** `/kassa`: gästköp, servern räknar allt. Stängd tills fraktpris, Swish-nummer och service role är konfigurerade. Idempotensnyckel per korg+formulär. Honeypot och best-effort rate limit.
 - **Orderstatus/betalning** `/order/[token]`: lokalt genererad Swish-QR (`qrcode`, inga anrop till Swish), appknapp (best-effort, mobil), nummer/belopp/referens med kopiera, "Jag har betalat" (rapporterar bara). "Betald" visas endast när admin verifierat.
-- **Discord**: fyra notiser (ny order, kund rapporterat betalning, betalning verifierad, order skickad; migrationerna `0007` och `0008`). Webhook från servern, riktig rollmention + `allowed_mentions`, ingen persondata, dedupe och retry via `notification_log`, fel stoppar aldrig ordern.
+- **Discord**: fyra notiser (ny order, kund rapporterat betalning, betalning verifierad, order skickad; migrationerna `0007`–`0009`, där 0009 tillåter betald → skickad utan packa-steg). Webhook från servern, riktig rollmention + `allowed_mentions`, ingen persondata, dedupe och retry via `notification_log`, fel stoppar aldrig ordern.
 - **Admin**: Beställningar (sök/status/datum), orderdetalj (verifiera betalning med beloppskontroll, statusflöde, spårning, administrativ återbetalning, händelsehistorik, Discord-status + "försök igen"), Lager (loggad justering), Inställningar (frakt + driftkontroll utan att visa hemligheter), dashboard med riktiga värden.
 
 ## Verifierat

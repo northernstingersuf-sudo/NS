@@ -284,6 +284,20 @@ reset role;
 select pg_temp.ok((select count(*) from product_variants where product_id = (select p_ks from ids)) = 1, 'borttagna varianter raderas');
 select pg_temp.ok((select count(*) from order_items where sku = 'NS-KS-M' and variant_id is not null) >= 1, 'orderrader behåller kopplingen till kvarvarande variant');
 
+-- paid → shipped direkt (utan packa-steg) ska gå och dra av lager
+set role service_role;
+create temp table r_direct as select create_order('key-direct-ship-0000001', null, 'direkt@test.se', 'sv', '{"name":"D"}',
+  jsonb_build_array(jsonb_build_object('id', (select p_fv from ids), 'qty', 1))) as j;
+grant select on r_direct to public;
+reset role;
+select pg_temp.share();
+set role authenticated; set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000a1';
+select admin_verify_payment((select (j->>'order_id')::uuid from r_direct), (select (j->>'total_ore')::int from r_direct));
+select admin_update_order((select (j->>'order_id')::uuid from r_direct), 'shipped', 'SE999');
+reset role;
+select pg_temp.ok((select status::text from orders where id = (select (j->>'order_id')::uuid from r_direct)) = 'shipped', 'betald order kan skickas direkt utan packa-steg');
+select pg_temp.ok((select quantity||'/'||reserved from inventory where product_id = (select p_fv from ids)) = '2/0', 'direktskickad order drar av lager (3/0 → 2/0)');
+
 -- ---- 13. RLS på nya tabeller ----
 select pg_temp.ok((select bool_and(relrowsecurity) from pg_class where relname in ('shop_settings','order_events','notification_log','stock_adjustments')), 'RLS på alla nya tabeller');
 

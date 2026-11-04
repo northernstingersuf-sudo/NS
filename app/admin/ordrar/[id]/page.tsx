@@ -8,7 +8,7 @@ const sek = (ore: number) => new Intl.NumberFormat("sv-SE", { style: "currency",
 const STATUS_SV: Record<string, string> = { pending: "Väntande", paid: "Betald", packed: "Packad", shipped: "Skickad", delivered: "Levererad", cancelled: "Avbruten", refunded: "Återbetald" };
 const EVENT_SV: Record<string, string> = { order_created: "Order skapad", payment_reported: "Kunden rapporterade betalning", payment_verified: "Betalning verifierad av admin", status_changed: "Status ändrad", tracking_set: "Spårningsnummer satt", refund_registered: "Återbetalning registrerad (administrativ)" };
 const NEXT: Record<string, { value: string; label: string }[]> = {
-  paid: [{ value: "packed", label: "Markera som packad" }, { value: "cancelled", label: "Avbryt order" }],
+  paid: [{ value: "packed", label: "Markera som packad" }, { value: "shipped", label: "Markera som skickad" }, { value: "cancelled", label: "Avbryt order" }],
   packed: [{ value: "shipped", label: "Markera som skickad" }, { value: "cancelled", label: "Avbryt order" }],
   shipped: [{ value: "delivered", label: "Markera som levererad" }],
   pending: [{ value: "cancelled", label: "Avbryt order" }],
