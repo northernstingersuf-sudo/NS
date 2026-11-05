@@ -23,7 +23,18 @@ export async function signUp(f: FormData) {
     email: field(f, "email"), password,
     options: site ? { emailRedirectTo: `${site}/auth/callback?next=/konto` } : undefined,
   });
-  if (error) redirect("/logga-in?fel=registrering");
+  if (error) {
+    // Loggar den riktiga orsaken (kod, inte e-postadress) och visar ett begripligt meddelande.
+    console.error(`[auth] signUp misslyckades: status=${error.status ?? "?"} code=${error.code ?? "?"}`);
+    const code = error.code ?? "";
+    const reason =
+      code === "over_email_send_rate_limit" || error.status === 429 ? "gransmejl"
+      : code === "email_address_invalid" ? "epost"
+      : code === "weak_password" ? "losenord"
+      : code === "signup_disabled" || code === "email_provider_disabled" ? "avstangd"
+      : "registrering";
+    redirect(`/logga-in?fel=${reason}`);
+  }
   redirect("/logga-in?klar=1");
 }
 export async function signOut() {

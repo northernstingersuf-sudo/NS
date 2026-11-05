@@ -1,6 +1,7 @@
 # Ändringslogg
 
 ## v11.1
+- **Tydligare registreringsfel:** begränsning av antal mejl, ogiltig e-post, svagt lösenord och avstängda registreringar ger egna meddelanden, och orsaken (felkod, inte adress) loggas på servern.
 - **Kontobekräftelse:** ny `/auth/callback` som tar emot länken i Supabases bekräftelsemejl och loggar in kunden (stöd för både `code` och `token_hash`). Registreringen skickar nu `emailRedirectTo` till sajten. Tidigare hamnade kunden på fel sida och blev inte inloggad. Kräver rätt Site URL och Redirect URLs i Supabase (se README).
 
 ## v11 (4 november 2026)
