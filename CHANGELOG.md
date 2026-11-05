@@ -1,5 +1,8 @@
 # Ändringslogg
 
+## v11.1
+- **Kontobekräftelse:** ny `/auth/callback` som tar emot länken i Supabases bekräftelsemejl och loggar in kunden (stöd för både `code` och `token_hash`). Registreringen skickar nu `emailRedirectTo` till sajten. Tidigare hamnade kunden på fel sida och blev inte inloggad. Kräver rätt Site URL och Redirect URLs i Supabase (se README).
+
 ## v11 (4 november 2026)
 - **E-postbekräftelser** via Resend: orderbekräftelse, betalning mottagen och order skickad. Migration 0010 (`email_log`, dedupe och retry).
 - Admin: sektionen "Kundmejl" på varje order med status och "Försök igen". Driftkontrollen visar om `RESEND_API_KEY` och `EMAIL_FROM` är satta.

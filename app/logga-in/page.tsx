@@ -6,6 +6,7 @@ const errors: Record<string, string> = {
   inlogg: "Fel e-post eller lösenord.",
   losenord: "Lösenordet måste vara minst 10 tecken.",
   registrering: "Kontot kunde inte skapas. Kontrollera e-postadressen.",
+  bekraftelse: "Bekräftelselänken är ogiltig eller har gått ut. Försök logga in. Fungerar inte det, skapa kontot igen.",
 };
 const input = "w-full border border-line px-4 py-3 text-sm";
 

@@ -46,6 +46,14 @@ Next.js App Router, React, TypeScript, Tailwind CSS och Supabase. Projektet utve
 4. Kontrollera i Vercel → Deployments att senaste deployen är **Ready** och **Current**. Misslyckas ett bygge ligger den gamla versionen kvar live.
 5. Ett snabbt sätt att se vilken kod som körs: spara en admin-sida och leta efter ändringen, eller jämför med `CHANGELOG.md`.
 
+## Kontobekräftelse (Supabase Auth)
+
+I Supabase → **Authentication → URL Configuration**:
+- **Site URL:** `https://northernstingers.store` (aldrig en `*.vercel.app`- eller `localhost`-adress).
+- **Redirect URLs:** lägg till `https://northernstingers.store/**` (och `https://www.northernstingers.store/**` om du använder www).
+
+Länken i bekräftelsemejlet går till `/auth/callback`, som loggar in kunden och skickar vidare till `/konto`. Supabase skickar sina egna kontomejl (bekräftelse, glömt lösenord) via en inbyggd avsändare med låg gräns per timme. För skarp drift: koppla Supabase till Resend under Authentication → SMTP Settings.
+
 ## E-postbekräftelser (Resend)
 
 Kunden får tre mejl: orderbekräftelse (med Swish-uppgifter och statuslänk), betalning mottagen och order skickad. Mejlen skickas från servern via Resend, högst ett per order och typ, och ett mejlfel stoppar aldrig en order. Status och "Försök igen" finns på varje order i admin.
