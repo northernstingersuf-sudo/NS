@@ -112,3 +112,9 @@ Inte uttryckligen bekräftat ännu: Swish-QR i telefon, Discord-notiserna mot di
 - Kassa: köpknappen och länkarna till villkor/ångerrätt/frakt visas före köp; slutbeloppet kommer från servern.
 - Juridik: granska alla företagsuppgifter, faktisk leveranstid/frakt/returadress, språk och dataskyddsprocess före publicering.
 
+
+
+## Tillägg v12.1 – dubbel bekräftelse av nyhetsbrev (6 november 2026)
+- Nyhetsbrevsanmälan skickar ett bekräftelsemejl via Resend. Prenumerationen aktiveras först efter att mottagaren öppnat länken och tryckt på bekräftelseknappen.
+- Admin och CSV-export räknar endast bekräftade och ej avregistrerade adresser som aktiva. Äldre poster måste bekräftas innan de kan exporteras för marknadsföring.
+- Ny migration: `0012_newsletter_double_opt_in.sql`. Denna kodändring är inte verifierad mot ett riktigt Supabase-projekt eller en riktig Resend-inkorg; kör migrationen först i testmiljö och testa sedan utskicket.

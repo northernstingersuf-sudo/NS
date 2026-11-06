@@ -1,3 +1,9 @@
+## v12.1 (6 november 2026)
+- Nyhetsbrevet använder double opt-in: anmälan skickar ett bekräftelsemejl via Resend och prenumerationen aktiveras först efter att kunden bekräftat.
+- Admin visar väntande bekräftelser; CSV-exporten tar endast med bekräftade och ej avregistrerade prenumeranter.
+- Ny migration `0012_newsletter_double_opt_in.sql` och nya bekräftelsesidor.
+- Verifiering mot riktig Supabase/Resend återstår.
+
 # Changelog
 
 ## v12 – 6 november 2026

@@ -12,10 +12,11 @@ export async function GET() {
   const { sb, user } = await requireAdmin();
   const { data, error } = await sb.from("newsletter_subscribers")
     .select("email,consented_at,consent_source,consent_version,consent_text,unsubscribe_token")
+    .not("confirmed_at", "is", null)
     .is("unsubscribed_at", null)
     .neq("consent_version", "legacy-unverified")
     .order("consented_at", { ascending: true });
-  if (error) return new Response("Kunde inte exportera prenumeranter. Kontrollera migration 0011.", { status: 500 });
+  if (error) return new Response("Kunde inte exportera prenumeranter. Kontrollera migration 0011 och 0012.", { status: 500 });
 
   const { error: auditError } = await sb.from("audit_logs").insert({ actor: user.id, action: "newsletter.exported", target: "newsletter_subscribers", meta: { active_count: data?.length ?? 0 } });
   if (auditError) console.error(`[newsletter] export audit log failed (${auditError.code})`);

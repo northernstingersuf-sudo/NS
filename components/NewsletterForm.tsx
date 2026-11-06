@@ -6,7 +6,7 @@ import { NEWSLETTER_CONSENT_TEXT } from "@/lib/newsletter-consent";
 
 export default function NewsletterForm() {
   const [state, action, pending] = useActionState<NewsState, FormData>(subscribe, {});
-  if (state.ok) return <p role="status" className="text-sm">Tack! Din prenumeration är registrerad. Du kan när som helst avregistrera dig.</p>;
+  if (state.ok) return <p role="status" className="text-sm">Tack! Vi har skickat ett bekräftelsemejl. Klicka på länken i mejlet för att aktivera din prenumeration. Kontrollera även skräpposten.</p>;
   return (
     <form action={action} className="space-y-3">
       <h3 className="text-sm font-medium">Nyhetsbrev</h3>

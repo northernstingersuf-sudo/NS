@@ -19,6 +19,7 @@ Next.js App Router, React, TypeScript, Tailwind CSS och Supabase. Projektet utve
    - `0009_ship_without_packing.sql`
    - `0010_email_log.sql`
    - `0011_newsletter_withdrawal.sql`
+   - `0012_newsletter_double_opt_in.sql`
 5. Starta utvecklingsservern med `npm run dev`.
 6. Skapa ett konto via `/logga-in`. Ge sedan kontot adminroll från Supabase SQL Editor:
    ```sql
@@ -42,7 +43,7 @@ Next.js App Router, React, TypeScript, Tailwind CSS och Supabase. Projektet utve
 ## Deploy-checklista (Vercel)
 
 1. Filerna ska ligga i **repots rot** (`package.json`, `app/`, `lib/` direkt i roten), inte i en undermapp. Zip-filerna har en toppmapp som heter `northern-stingers/`; packa upp innehållet i den, inte mappen själv.
-2. Kör nya migrationer i Supabase **innan** du deployar kod som använder dem. För version 12 krävs `0011_newsletter_withdrawal.sql`.
+2. Kör nya migrationer i Supabase **innan** du deployar kod som använder dem. För version 12 krävs `0011_newsletter_withdrawal.sql` och `0012_newsletter_double_opt_in.sql`.
 3. Efter ändrade miljövariabler krävs en ny deploy.
 4. Kontrollera i Vercel → Deployments att senaste deployen är **Ready** och **Current**. Misslyckas ett bygge ligger den gamla versionen kvar live.
 5. Ett snabbt sätt att se vilken kod som körs: spara en admin-sida och leta efter ändringen, eller jämför med `CHANGELOG.md`.
@@ -78,7 +79,7 @@ Utan `RESEND_API_KEY`/`EMAIL_FROM` skickas inga mejl. I v12 hålls kassan stäng
 ## Nyhetsbrev och juridisk information (v12)
 
 - Registrering kräver en aktiv samtyckesruta; samtyckestext, version, källa och tidpunkt sparas. Avregistrering sker via en unik länk och en bekräftelseåtgärd.
-- `/admin/nyhetsbrev` visar prenumeranter och ger CSV-export. Exporten exkluderar avregistrerade adresser och gamla poster märkta `legacy-unverified`, eftersom deras exakta samtyckestext inte finns sparad.
+- `/admin/nyhetsbrev` visar prenumeranter, bekräftelsestatus och ger CSV-export. Nyhetsbrevet använder double opt-in via Resend: en adress exporteras först efter att den har bekräftats, och avregistrerade eller äldre obekräftade adresser tas inte med.
 - `/retur-och-reklamation` har onlineformulär för ångermeddelande. Mottagningsbevis skickas via Resend. `/admin/returer` visar ärenden och låter admin skicka om kvittens. Konfigurera och testa Resend före lansering.
 - Juridiska sidor är uppdaterade på svenska. Företagsnamn, organisationsnummer, adress, telefon, momsnummer och leveranstidsuppskattning hämtas från miljövariablerna `BUSINESS_LEGAL_NAME`, `BUSINESS_ORG_NUMBER`, `BUSINESS_ADDRESS`, `BUSINESS_PHONE`, `BUSINESS_RETURN_ADDRESS`, `BUSINESS_VAT_NUMBER`, `BUSINESS_EMAIL` och `PUBLIC_DELIVERY_ESTIMATE`. Fyll i riktiga uppgifter före lansering.
 - Nyhetsbrevskampanjer, full engelsk lokalisering och cookie-banner för framtida icke-nödvändig analys ingår inte ännu. Se `docs/IMPLEMENTATION_STATUS.md`.
