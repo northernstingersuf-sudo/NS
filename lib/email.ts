@@ -111,3 +111,23 @@ export async function sendEmail(input: SendEmailInput, opts: { timeoutMs?: numbe
     return { ok: false, error: e instanceof Error && e.name === "TimeoutError" ? "email_timeout" : "email_network_error" };
   }
 }
+
+/** Mottagningsbevis för konsumentens ångermeddelande enligt distansavtalslagen. */
+export function buildWithdrawalReceipt(input: { orderNumber: string; customerName: string; receivedAt: string; siteUrl: string }): BuiltEmail {
+  const when = new Date(input.receivedAt).toLocaleString("sv-SE", { dateStyle: "long", timeStyle: "short", timeZone: "Europe/Stockholm" });
+  const safeName = esc(input.customerName);
+  const safeOrder = esc(input.orderNumber);
+  const safeWhen = esc(when);
+  const safeSite = esc(input.siteUrl);
+  const subject = `Mottagningsbevis för ångermeddelande – ${input.orderNumber}`;
+  const text = [
+    "Vi har tagit emot ditt ångermeddelande.",
+    `Namn: ${input.customerName}`,
+    `Ordernummer: ${input.orderNumber}`,
+    `Mottaget: ${when} (svensk tid)`,
+    "Detta mejl är ett mottagningsbevis. Det bekräftar tidpunkten då ditt meddelande kom in, men innebär inte i sig att en återbetalning har genomförts.",
+    `Northern Stingers – ${input.siteUrl}`,
+  ].join("\n\n");
+  const html = `<!doctype html><html lang="sv"><body style="margin:0;background:#f5f5f4;font-family:Helvetica,Arial,sans-serif;color:#0a0a0a"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:32px 16px"><table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#fff;padding:32px"><tr><td><p style="margin:0 0 24px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#666">Northern Stingers</p><h1 style="font-size:24px;line-height:1.2">Vi har tagit emot ditt ångermeddelande</h1><p style="line-height:1.6">Hej ${safeName}, vi bekräftar att vi har tagit emot ditt meddelande om att frånträda köpet.</p><p style="line-height:1.8"><strong>Ordernummer:</strong> ${safeOrder}<br><strong>Mottaget:</strong> ${safeWhen} (svensk tid)</p><p style="line-height:1.6">Det här mejlet är ett mottagningsbevis. Det bekräftar tidpunkten då ditt meddelande kom in, men innebär inte i sig att en återbetalning har genomförts.</p><p style="font-size:13px;color:#666"><a href="${safeSite}">${safeSite}</a></p></td></tr></table></td></tr></table></body></html>`;
+  return { subject, html, text };
+}

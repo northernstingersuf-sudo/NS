@@ -5,16 +5,19 @@ import { createClient } from "@/lib/supabase/server";
 import { createPublicClient } from "@/lib/supabase/public";
 import { createAdminClient, hasServiceRole } from "@/lib/supabase/admin";
 import { notifyOrder } from "@/lib/notify";
-import { notifyEmail } from "@/lib/notify-email";
+import { isEmailConfigured, notifyEmail } from "@/lib/notify-email";
 import { validateCheckout, describeOrderError } from "@/lib/checkout";
 import { normalizeSwishNumber } from "@/lib/swish";
 import { rateLimit } from "@/lib/rate-limit";
+import { businessDetailsComplete } from "@/lib/business";
 
 export type CheckoutConfig = { open: true; shipping: { flat_ore: number; free_over_ore: number | null } } | { open: false; reason: string };
 
 /** Är kassan redo? Kräver service role, giltigt Swish-nummer och konfigurerad frakt. Visar aldrig själva värdena. */
 export async function getCheckoutConfig(): Promise<CheckoutConfig> {
   if (!hasServiceRole()) return { open: false, reason: "Kassan är inte konfigurerad ännu." };
+  if (!businessDetailsComplete || !process.env.PUBLIC_DELIVERY_ESTIMATE?.trim()) return { open: false, reason: "Fyll i säljarens företagsuppgifter och en verklig leveranstidsuppskattning innan kassan öppnas." };
+  if (!isEmailConfigured()) return { open: false, reason: "E-posttjänsten måste konfigureras och testas innan kassan öppnas, så att obligatoriska mottagningsbevis kan skickas." };
   if (!normalizeSwishNumber(process.env.SWISH_NUMBER)) return { open: false, reason: "Betalning är inte konfigurerad ännu." };
   const sb = createAdminClient();
   const { data, error } = await sb.from("shop_settings").select("value").eq("key", "shipping").maybeSingle();

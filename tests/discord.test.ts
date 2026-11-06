@@ -9,13 +9,13 @@ const order: NoticeOrder = {
 };
 
 test("rollping är en riktig mention + allowed_mentions", () => {
-  const p = buildDiscordPayload("order_created", order, { roleId: "123456789012345678", siteUrl: "https://northernstingers.se/" });
+  const p = buildDiscordPayload("order_created", order, { roleId: "123456789012345678", siteUrl: "https://northernstingers.store/" });
   assert.ok(p.content.startsWith("<@&123456789012345678>"));
   assert.deepEqual(p.allowed_mentions, { parse: [], roles: ["123456789012345678"] });
 });
 test("innehåll: ordernummer, rader, belopp, ej verifierad, adminlänk", () => {
-  const json = JSON.stringify(buildDiscordPayload("order_created", order, { roleId: "123456789012345678", siteUrl: "https://northernstingers.se/" }));
-  for (const s of ["Ny beställning – inväntar Swishbetalning", "NS-2026-001000", "2 × Kedje Stinger", "MEDIUM", "Ej verifierad", "https://northernstingers.se/admin/ordrar/" + order.id]) assert.ok(json.includes(s), s);
+  const json = JSON.stringify(buildDiscordPayload("order_created", order, { roleId: "123456789012345678", siteUrl: "https://northernstingers.store/" }));
+  for (const s of ["Ny beställning – inväntar Swishbetalning", "NS-2026-001000", "2 × Kedje Stinger", "MEDIUM", "Ej verifierad", "https://northernstingers.store/admin/ordrar/" + order.id]) assert.ok(json.includes(s), s);
 });
 test("markdown/mentions i produktnamn neutraliseras", () => {
   const json = JSON.stringify(buildDiscordPayload("order_created", order, { roleId: "123456789012345678" }));

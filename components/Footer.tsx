@@ -23,10 +23,10 @@ export default function Footer() {
         </div>
         <div className="[&_a]:text-paper/60 [&_a:hover]:text-paper">{col("Handla", [["/produkter", "Alla produkter"], ["/konto", "Mitt konto"]])}</div>
         <div className="[&_a]:text-paper/60 [&_a:hover]:text-paper">{col("Kundservice", [["/frakt-och-leverans", "Frakt och leverans"], ["/retur-och-reklamation", "Retur och reklamation"], ["/kontakt", "Kontakt"]])}</div>
-        <div className="[&_a]:text-paper/60 [&_a:hover]:text-paper">{col("Juridik", [["/kopvillkor", "Köpvillkor"], ["/integritetspolicy", "Integritetspolicy"], ["/om-oss", "Om oss"]])}</div>
+        <div className="[&_a]:text-paper/60 [&_a:hover]:text-paper">{col("Juridik", [["/kopvillkor", "Köpvillkor"], ["/integritetspolicy", "Integritetspolicy"], ["/cookies", "Cookies"], ["/om-oss", "Om oss"]])}</div>
       </div>
       <div className="mx-auto max-w-7xl px-5 pb-12 sm:px-8 md:max-w-md md:ml-auto md:mr-[max(2rem,calc((100vw-80rem)/2+2rem))]"><NewsletterForm /></div>
-      <div className="border-t border-paper/10 py-6 text-center text-xs text-paper/40">© {new Date().getFullYear()} Northern Stingers · northernstingers.se</div>
+      <div className="border-t border-paper/10 py-6 text-center text-xs text-paper/40">© {new Date().getFullYear()} Northern Stingers · northernstingers.store</div>
     </footer>
   );
 }

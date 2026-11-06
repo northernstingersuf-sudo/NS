@@ -1,4 +1,12 @@
-# Ändringslogg
+# Changelog
+
+## v12 – 6 november 2026
+- Nyhetsbrev: samtyckestext/version/källa/tidpunkt sparas, honeypot och rate limit, POST-baserad avregistrering, adminlista och CSV-export med auditlogg. Äldre prenumeranter utan samtyckesbevis exkluderas från export.
+- Juridiska sidor: utökade köpvillkor, integritetspolicy, frakt/leverans, retur/reklamation och cookieinformation. Saknade företagsuppgifter är konfigurerbara och markeras i UI.
+- Nytt onlineformulär för ångermeddelanden med e-postmottagningsbevis och adminhantering/omskick.
+- Kassans köpknapp klargör betalningsskyldighet och länkar före köp till viktiga villkor.
+- Kanonisk domän harmoniserad till northernstingers.store.
+
 
 ## v11.1
 - **Tydligare registreringsfel:** begränsning av antal mejl, ogiltig e-post, svagt lösenord och avstängda registreringar ger egna meddelanden, och orsaken (felkod, inte adress) loggas på servern.

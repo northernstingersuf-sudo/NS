@@ -18,6 +18,7 @@ Next.js App Router, React, TypeScript, Tailwind CSS och Supabase. Projektet utve
    - `0008_notify_order_shipped.sql`
    - `0009_ship_without_packing.sql`
    - `0010_email_log.sql`
+   - `0011_newsletter_withdrawal.sql`
 5. Starta utvecklingsservern med `npm run dev`.
 6. Skapa ett konto via `/logga-in`. Ge sedan kontot adminroll från Supabase SQL Editor:
    ```sql
@@ -25,7 +26,7 @@ Next.js App Router, React, TypeScript, Tailwind CSS och Supabase. Projektet utve
    set role = 'admin'
    where id = '<Ditt auth.users-id>';
    ```
-7. Sätt miljövariabler (se `.env.example`) i hostingen, främst `SUPABASE_SERVICE_ROLE_KEY`, `SWISH_NUMBER`, `DISCORD_WEBHOOK_URL`, `DISCORD_ROLE_ID`.
+7. Sätt miljövariabler (se `.env.example`) i hostingen, främst `SUPABASE_SERVICE_ROLE_KEY`, `SWISH_NUMBER`, `DISCORD_WEBHOOK_URL`, `DISCORD_ROLE_ID` och säljar-/leveransuppgifterna. Kassan hålls stängd tills juridiskt företagsnamn, organisationsnummer, adress, telefon, verklig leveranstidsuppskattning och fungerande Resend-konfiguration är ifyllda. Returadress anges med `BUSINESS_RETURN_ADDRESS` eller lämnas av kundservice innan en retur skickas.
 8. Öppna `/admin/installningar` och ange fraktpris. Kassan är stängd tills det är gjort.
 9. Öppna `/admin` och hantera produkterna under `/admin/produkter`.
 
@@ -41,7 +42,7 @@ Next.js App Router, React, TypeScript, Tailwind CSS och Supabase. Projektet utve
 ## Deploy-checklista (Vercel)
 
 1. Filerna ska ligga i **repots rot** (`package.json`, `app/`, `lib/` direkt i roten), inte i en undermapp. Zip-filerna har en toppmapp som heter `northern-stingers/`; packa upp innehållet i den, inte mappen själv.
-2. Kör nya migrationer i Supabase **innan** du deployar kod som använder dem.
+2. Kör nya migrationer i Supabase **innan** du deployar kod som använder dem. För version 12 krävs `0011_newsletter_withdrawal.sql`.
 3. Efter ändrade miljövariabler krävs en ny deploy.
 4. Kontrollera i Vercel → Deployments att senaste deployen är **Ready** och **Current**. Misslyckas ett bygge ligger den gamla versionen kvar live.
 5. Ett snabbt sätt att se vilken kod som körs: spara en admin-sida och leta efter ändringen, eller jämför med `CHANGELOG.md`.
@@ -66,13 +67,21 @@ Så här kommer du igång:
 4. Sätt `RESEND_API_KEY` (Secret) och `EMAIL_FROM` (t.ex. `Northern Stingers <order@northernstingers.store>`) i Vercel. `EMAIL_REPLY_TO` är valfri.
 5. Kör migration `0010_email_log.sql`, gör en ny deploy och lägg en testorder med din egen e-postadress.
 
-Utan `RESEND_API_KEY`/`EMAIL_FROM` skickas inga mejl, men beställningar fungerar som vanligt. Misslyckade utskick syns då som "not_configured" och kan skickas om när du har konfigurerat tjänsten.
+Utan `RESEND_API_KEY`/`EMAIL_FROM` skickas inga mejl. I v12 hålls kassan stängd tills Resend är konfigurerat, eftersom orderbekräftelser och mottagningsbevis för ångermeddelanden måste kunna skickas. Misslyckade transaktionsmejl syns i admin och kan skickas om när tjänsten fungerar.
 
 ## Miljövariabler
 
 `NEXT_PUBLIC_SUPABASE_URL` och `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` används av den publika Supabase-klienten. `SUPABASE_SERVICE_ROLE_KEY`, `SWISH_NUMBER`, `DISCORD_WEBHOOK_URL`, `RESEND_API_KEY` och andra hemligheter ska endast sättas på servern. Använd aldrig `NEXT_PUBLIC_`-prefix för hemligheter.
 
 `.env.local` ska inte checkas in eller delas i en projekt-ZIP. `.env.example` innehåller endast tomma platshållare.
+
+## Nyhetsbrev och juridisk information (v12)
+
+- Registrering kräver en aktiv samtyckesruta; samtyckestext, version, källa och tidpunkt sparas. Avregistrering sker via en unik länk och en bekräftelseåtgärd.
+- `/admin/nyhetsbrev` visar prenumeranter och ger CSV-export. Exporten exkluderar avregistrerade adresser och gamla poster märkta `legacy-unverified`, eftersom deras exakta samtyckestext inte finns sparad.
+- `/retur-och-reklamation` har onlineformulär för ångermeddelande. Mottagningsbevis skickas via Resend. `/admin/returer` visar ärenden och låter admin skicka om kvittens. Konfigurera och testa Resend före lansering.
+- Juridiska sidor är uppdaterade på svenska. Företagsnamn, organisationsnummer, adress, telefon, momsnummer och leveranstidsuppskattning hämtas från miljövariablerna `BUSINESS_LEGAL_NAME`, `BUSINESS_ORG_NUMBER`, `BUSINESS_ADDRESS`, `BUSINESS_PHONE`, `BUSINESS_RETURN_ADDRESS`, `BUSINESS_VAT_NUMBER`, `BUSINESS_EMAIL` och `PUBLIC_DELIVERY_ESTIMATE`. Fyll i riktiga uppgifter före lansering.
+- Nyhetsbrevskampanjer, full engelsk lokalisering och cookie-banner för framtida icke-nödvändig analys ingår inte ännu. Se `docs/IMPLEMENTATION_STATUS.md`.
 
 ## Produktkatalog
 
@@ -93,7 +102,7 @@ Swish används **utan Swish API**: QR skapas lokalt, appknappen är best-effort,
 ## Tester
 
 - `npm run typecheck`, `npm test` (enhetstester), `npm run build`.
-- Databastester: kör `supabase/tests/00_local_bootstrap.sql`, migrationerna 0001–0010 och `supabase/tests/orders_flow.test.sql` mot en TOM lokal PostgreSQL. Aldrig mot Supabase-produktion.
+- Databastester: kör `supabase/tests/00_local_bootstrap.sql`, migrationerna 0001–0011 och `supabase/tests/orders_flow.test.sql` mot en TOM lokal PostgreSQL. Aldrig mot Supabase-produktion.
 
 Detaljerad status och kvarvarande arbete: [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md).
 

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildEmail, esc, isValidFrom, sendEmail, type EmailOrder } from "../lib/email";
+import { buildEmail, buildWithdrawalReceipt, esc, isValidFrom, sendEmail, type EmailOrder } from "../lib/email";
 
 const order: EmailOrder = {
   order_number: "NS-2026-001003", subtotal_ore: 7000, discount_ore: 700, shipping_ore: 4900, total_ore: 11200, tracking_number: "SE123456789",
@@ -65,4 +65,33 @@ test("sändning: rätt anrop till Resend, felkoder utan hemligheter", async () =
     assert.deepEqual(res, { ok: false, error: code });
     assert.ok(!JSON.stringify(res).includes("SECRET") && !JSON.stringify(res).includes("kund@"));
   }
+});
+
+test("mottagningsbevis för ångermeddelande innehåller order, namn och registrerad tid", () => {
+  const receipt = buildWithdrawalReceipt({
+    orderNumber: "NS-2026-001004",
+    customerName: "Anna Andersson",
+    receivedAt: "2026-11-06T13:15:00.000Z",
+    siteUrl: "https://northernstingers.store",
+  });
+  assert.ok(receipt.subject.includes("NS-2026-001004"));
+  for (const content of [receipt.text, receipt.html]) {
+    assert.ok(content.includes("Anna Andersson"));
+    assert.ok(content.includes("NS-2026-001004"));
+    assert.ok(content.includes("Mottaget"));
+    assert.ok(content.includes("mottagningsbevis"));
+  }
+  assert.ok(receipt.text.includes("innebär inte i sig att en återbetalning har genomförts"));
+});
+
+test("mottagningsbevis HTML-escapar användarnamn och URL", () => {
+  const receipt = buildWithdrawalReceipt({
+    orderNumber: "NS-2026-001005",
+    customerName: "<script>alert(1)</script>",
+    receivedAt: "2026-11-06T13:15:00.000Z",
+    siteUrl: 'https://example.test/?x="y"&z=1',
+  });
+  assert.ok(!receipt.html.includes("<script>"));
+  assert.ok(receipt.html.includes("&lt;script&gt;"));
+  assert.ok(receipt.html.includes("&quot;y&quot;&amp;z=1"));
 });

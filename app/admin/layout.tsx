@@ -13,6 +13,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <Link href="/admin/produkter">Produkter</Link>
         <Link href="/admin/produkter/ny">Ny produkt</Link>
         <Link href="/admin/lager">Lager</Link>
+        <Link href="/admin/nyhetsbrev">Nyhetsbrev</Link>
+        <Link href="/admin/returer">Ångermeddelanden</Link>
         <Link href="/admin/installningar">Inställningar</Link>
         <Link href="/" className="ml-auto text-mute">Visa butik ↗</Link>
       </nav>
