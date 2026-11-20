@@ -20,6 +20,7 @@ Next.js App Router, React, TypeScript, Tailwind CSS och Supabase. Projektet utve
    - `0010_email_log.sql`
    - `0011_newsletter_withdrawal.sql`
    - `0012_newsletter_double_opt_in.sql`
+   - `0013_checkout_total_guard.sql`
 5. Starta utvecklingsservern med `npm run dev`.
 6. Skapa ett konto via `/logga-in`. Ge sedan kontot adminroll från Supabase SQL Editor:
    ```sql
@@ -43,7 +44,7 @@ Next.js App Router, React, TypeScript, Tailwind CSS och Supabase. Projektet utve
 ## Deploy-checklista (Vercel)
 
 1. Filerna ska ligga i **repots rot** (`package.json`, `app/`, `lib/` direkt i roten), inte i en undermapp. Zip-filerna har en toppmapp som heter `northern-stingers/`; packa upp innehållet i den, inte mappen själv.
-2. Kör nya migrationer i Supabase **innan** du deployar kod som använder dem. För version 12 krävs `0011_newsletter_withdrawal.sql` och `0012_newsletter_double_opt_in.sql`.
+2. Kör nya migrationer i Supabase **innan** du deployar kod som använder dem. För Sprint 01 krävs också `0013_checkout_total_guard.sql` **innan** checkout-koden deployas. Annars kan inga nya order skapas (RPC `create_order_checked` saknas).
 3. Efter ändrade miljövariabler krävs en ny deploy.
 4. Kontrollera i Vercel → Deployments att senaste deployen är **Ready** och **Current**. Misslyckas ett bygge ligger den gamla versionen kvar live.
 5. Ett snabbt sätt att se vilken kod som körs: spara en admin-sida och leta efter ändringen, eller jämför med `CHANGELOG.md`.
@@ -100,10 +101,18 @@ Beskrivningar och namn finns på svenska och engelska. Produktbilder saknas i ex
 
 Swish används **utan Swish API**: QR skapas lokalt, appknappen är best-effort, och **admin verifierar varje betalning manuellt** under `/admin/ordrar`. Nya order och kundrapporter skickas till Discord (`DISCORD_WEBHOOK_URL`, `DISCORD_ROLE_ID`). Se `docs/IMPLEMENTATION_STATUS.md` för vad som är verifierat och vad som kräver test i din miljö.
 
+## Sprint 01 – säker prissättning i kassan
+
+- Kassan hämtar en aktuell serverberäknad offert för varor, varianter, rabatt, frakt och totalbelopp. Om hämtningen misslyckas blockeras köpknappen, i stället för att visa priser från webbläsarens varukorg.
+- `create_order_checked` (migration 0013) anropar den befintliga transaktionssäkra `create_order` och avbryter/återställer **hela transaktionen** om slutbeloppet har ändrats sedan kunden såg offerten. Kunden måste då granska det nya beloppet och försöka igen.
+- Prisberäkning och lagerstatus är en förhandsvisning, **inte** en reservation. Skapandet av ordern låser/validerar lager och rabatt atomärt precis som tidigare.
+- **Driftsättning:** kör migration 0013 i ett separat Supabase-testprojekt, kör SQL- och enhetstester, verifiera kassaflödet och kör sedan migrationen i den avsedda produktionsdatabasen **före** att den nya appversionen rullas ut. Inget i denna branch kör migrationer automatiskt. Byt inte till den nya appversionen utan migration 0013.
+- GitHub Actions `Checkout validation` kör TypeScript- och enhetstester vid pull requests. SQL-tester måste köras separat mot en tom lokal testdatabas.
+
 ## Tester
 
 - `npm run typecheck`, `npm test` (enhetstester), `npm run build`.
-- Databastester: kör `supabase/tests/00_local_bootstrap.sql`, migrationerna 0001–0011 och `supabase/tests/orders_flow.test.sql` mot en TOM lokal PostgreSQL. Aldrig mot Supabase-produktion.
+- Databastester: kör `supabase/tests/00_local_bootstrap.sql`, migrationerna 0001–0013 och `supabase/tests/orders_flow.test.sql` mot en TOM lokal PostgreSQL. Aldrig mot Supabase-produktion.
 
 Detaljerad status och kvarvarande arbete: [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md).
 
