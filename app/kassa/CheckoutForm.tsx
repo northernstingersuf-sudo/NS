@@ -1,41 +1,44 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/components/CartProvider";
 import { sek } from "@/lib/money";
-import { placeOrder, quoteCart, type QuoteLine } from "./actions";
+import { placeOrder, quoteCheckout } from "./actions";
+import type { CheckoutQuote } from "@/lib/checkout-quote";
 
 const input = "mt-1 w-full border border-line bg-transparent px-3 py-3 text-sm";
 const label = "block text-xs font-medium uppercase tracking-wider text-mute";
 const KEY_STORE = "ns-checkout-key";
 
-type Shipping = { flat_ore: number; free_over_ore: number | null };
-
-export default function CheckoutForm({ shipping }: { shipping: Shipping }) {
+export default function CheckoutForm() {
   const { items, clear, ready } = useCart();
   const router = useRouter();
-  const [lines, setLines] = useState<QuoteLine[] | null>(null);
+  const [quote, setQuote] = useState<CheckoutQuote | null>(null);
+  const [quoting, setQuoting] = useState(false);
+  const [discountCode, setDiscountCode] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const formRef = useRef<HTMLFormElement>(null);
 
   const cartSig = useMemo(() => JSON.stringify(items.map((i) => [i.id, i.qty]).sort()), [items]);
 
   useEffect(() => {
     if (!ready) return;
-    if (!items.length) { setLines([]); return; }
+    if (!items.length) { setQuote(null); setQuoting(false); return; }
     let alive = true;
-    quoteCart(items.map((i) => ({ id: i.id, qty: i.qty }))).then((l) => alive && setLines(l))
-      .catch(() => alive && setLines(items.map((i) => ({ id: i.id, name: i.name, variant: null, unit_ore: i.price_ore, qty: i.qty, problem: null }))));
-    return () => { alive = false; };
-  }, [ready, cartSig]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const subtotal = (lines ?? []).reduce((n, l) => n + l.unit_ore * l.qty, 0);
-  const blocked = (lines ?? []).some((l) => l.problem);
-  const shippingOre = subtotal >= (shipping.free_over_ore ?? Infinity) ? 0 : shipping.flat_ore;
+    setQuote(null);
+    setQuoting(true);
+    // Debounce discount input changes, but never display cached local cart prices.
+    const timer = setTimeout(() => {
+      quoteCheckout(items.map(i => ({ id: i.id, qty: i.qty })), discountCode)
+        .then(q => { if (alive) setQuote(q); })
+        .catch(() => { if (alive) setQuote({ ok: false, error: "Kunde inte kontrollera priserna. Försök igen." }); })
+        .finally(() => { if (alive) setQuoting(false); });
+    }, 300);
+    return () => { alive = false; clearTimeout(timer); };
+  }, [ready, cartSig, discountCode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Idempotensnyckel per unik beställning (korg + formulärdata). Dubbelklick/omladdning/nätverksfel ger samma nyckel → samma order. */
   function keyFor(sig: string): string {
@@ -50,7 +53,7 @@ export default function CheckoutForm({ shipping }: { shipping: Shipping }) {
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (pending) return;
+    if (pending || quoting || !quote?.ok) return;
     setError(null); setFieldErrors({});
     const f = new FormData(e.currentTarget);
     const get = (k: string) => String(f.get(k) ?? "");
@@ -59,9 +62,10 @@ export default function CheckoutForm({ shipping }: { shipping: Shipping }) {
       postalCode: get("postalCode"), city: get("city"), discountCode: get("discountCode"), website: get("website"),
       items: items.map((i) => ({ id: i.id, qty: i.qty })),
     };
+    const confirmedTotal = quote.total_ore;
     setPending(true);
     try {
-      const res = await placeOrder({ ...payload, idempotencyKey: keyFor(JSON.stringify([cartSig, { ...payload, website: "" }])) });
+      const res = await placeOrder({ ...payload, idempotencyKey: keyFor(JSON.stringify([cartSig, { ...payload, website: "" }])) }, confirmedTotal);
       if (res.ok) {
         try { sessionStorage.removeItem(KEY_STORE); } catch {}
         clear();
@@ -69,6 +73,11 @@ export default function CheckoutForm({ shipping }: { shipping: Shipping }) {
         return;
       }
       setError(res.error);
+      // A rejection (e.g. price changed) requires a fresh authoritative quote.
+      setQuoting(true);
+      const refreshed = await quoteCheckout(items.map(i => ({ id: i.id, qty: i.qty })), discountCode).catch(() => ({ ok: false as const, error: "Kunde inte kontrollera priserna. Försök igen." }));
+      setQuote(refreshed);
+      setQuoting(false);
       if (res.fieldErrors) setFieldErrors(res.fieldErrors);
     } catch {
       setError("Nätverksfel. Tryck på knappen igen; din beställning dubbleras inte.");
@@ -76,13 +85,14 @@ export default function CheckoutForm({ shipping }: { shipping: Shipping }) {
     setPending(false);
   }
 
-  if (!ready || (lines === null && items.length > 0)) return <p className="mt-10 text-sm text-mute" aria-live="polite">Laddar varukorg…</p>;
+  if (!ready) return <p className="mt-10 text-sm text-mute" aria-live="polite">Laddar varukorg…</p>;
   if (!items.length) return <p className="mt-10 text-mute">Varukorgen är tom. <Link href="/produkter" className="text-ink underline">Se produkter</Link></p>;
 
+  const lines = quote?.ok ? quote.lines : [];
   const fe = (k: string) => fieldErrors[k] ? <span role="alert" className="mt-1 block text-xs text-red-700">{fieldErrors[k]}</span> : null;
 
   return (
-    <form ref={formRef} onSubmit={onSubmit} noValidate className="mt-10 grid gap-12 lg:grid-cols-[1.2fr_1fr]">
+    <form onSubmit={onSubmit} noValidate className="mt-10 grid gap-12 lg:grid-cols-[1.2fr_1fr]">
       <div className="space-y-5">
         <h2 className="text-xl font-semibold">Leverans</h2>
         <label className="block"><span className={label}>E-post</span><input name="email" type="email" required autoComplete="email" className={input} />{fe("email")}</label>
@@ -102,26 +112,31 @@ export default function CheckoutForm({ shipping }: { shipping: Shipping }) {
       <aside className="lg:sticky lg:top-24 lg:self-start">
         <h2 className="text-xl font-semibold">Din beställning</h2>
         <ul className="mt-4 divide-y divide-line border-y border-line">
-          {(lines ?? []).map((l) => (
+          {lines.map((l) => (
             <li key={l.id} className="flex justify-between gap-4 py-3 text-sm">
-              <span>{l.qty} × {l.name}{l.variant ? ` – ${l.variant}` : ""}{l.problem && <span role="alert" className="mt-1 block text-xs text-red-700">{l.problem}. Ta bort varan i varukorgen.</span>}</span>
+              <span>{l.qty} × {l.name}{l.variant ? ` – ${l.variant}` : ""}</span>
               <span className="tabular-nums">{sek(l.unit_ore * l.qty)}</span>
             </li>
           ))}
         </ul>
         <dl className="mt-4 space-y-1 text-sm">
-          <div className="flex justify-between"><dt>Delsumma</dt><dd className="tabular-nums">{sek(subtotal)}</dd></div>
-          <div className="flex justify-between"><dt>Frakt</dt><dd className="tabular-nums">{shippingOre === 0 ? "Fri frakt" : sek(shippingOre)}</dd></div>
+          <div className="flex justify-between"><dt>Delsumma</dt><dd className="tabular-nums">{quote?.ok ? sek(quote.subtotal_ore) : "—"}</dd></div>
+          <div className="flex justify-between"><dt>Frakt</dt><dd className="tabular-nums">{quote?.ok ? (quote.shipping_ore === 0 ? "Fri frakt" : sek(quote.shipping_ore)) : "—"}</dd></div>
+          {quote?.ok && quote.discount_ore > 0 && <div className="flex justify-between"><dt>Rabatt</dt><dd>−{sek(quote.discount_ore)}</dd></div>}
+          <div className="flex justify-between border-t border-line pt-3 text-base font-semibold"><dt>Att betala</dt><dd>{quote?.ok ? sek(quote.total_ore) : "—"}</dd></div>
         </dl>
-        <label className="mt-5 block"><span className={label}>Rabattkod (valfri)</span><input name="discountCode" autoComplete="off" className={input} />{fe("discountCode")}</label>
-        <p className="mt-2 text-xs text-mute">Rabatt och slutlig summa räknas ut av oss när du lägger beställningen.</p>
+        <label className="mt-5 block"><span className={label}>Rabattkod (valfri)</span><input name="discountCode" value={discountCode} onChange={e => setDiscountCode(e.target.value)} autoComplete="off" className={input} />{fe("discountCode")}</label>
+        <p className="mt-2 text-xs text-mute">Aktuella priser och rabatt kontrolleras på servern. Slutbeloppet verifieras igen när du beställer.</p>
+        {quoting && <p role="status" className="mt-3 text-sm text-mute">Kontrollerar priser och lager…</p>}
+        {!quoting && quote && !quote.ok && <p role="alert" className="mt-3 text-sm text-red-700">{quote.error}</p>}
+        {!quoting && !quote?.ok && <button type="button" onClick={() => { setQuoting(true); quoteCheckout(items.map(i => ({ id: i.id, qty: i.qty })), discountCode).then(setQuote).catch(() => setQuote({ ok: false, error: "Kunde inte kontrollera priserna." })).finally(() => setQuoting(false)); }} className="mt-3 underline text-sm">Försök uppdatera priset</button>}
 
         {error && <p role="alert" className="mt-5 border border-red-300 px-4 py-3 text-sm">{error}</p>}
         {fe("items")}
-        <button disabled={pending || blocked} className="mt-6 w-full bg-ink py-4 text-sm text-paper disabled:bg-line disabled:text-mute">
+        <button disabled={pending || quoting || !quote?.ok} className="mt-6 w-full bg-ink py-4 text-sm text-paper disabled:bg-line disabled:text-mute">
           {pending ? "Skapar beställning…" : "Slutför köp – betalningsskyldighet"}
         </button>
-        <p className="mt-3 text-xs leading-relaxed text-mute">Du betalar i nästa steg med Swish. Ordern behandlas först när vi har kontrollerat att betalningen kommit in. Genom att slutföra köpet åtar du dig att betala totalbeloppet som visas.</p>
+        <p className="mt-3 text-xs leading-relaxed text-mute">Du betalar i nästa steg med Swish. Ordern behandlas först när vi har kontrollerat att betalningen kommit in. Genom att slutföra köpet åtar du dig att betala beloppet under ”Att betala”. Om summan ändras måste du granska den igen.</p>
         <p className="mt-2 text-xs leading-relaxed text-mute">Läs <Link href="/kopvillkor" className="underline">köpvillkoren</Link>, <Link href="/frakt-och-leverans" className="underline">leveransinformationen</Link> och informationen om <Link href="/retur-och-reklamation" className="underline">ångerrätt och reklamation</Link> före köp.</p>
       </aside>
     </form>
