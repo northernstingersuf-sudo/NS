@@ -323,3 +323,23 @@ select pg_temp.ok((select quantity||'/'||reserved from inventory where product_i
 select pg_temp.ok((select bool_and(relrowsecurity) from pg_class where relname in ('shop_settings','order_events','notification_log','stock_adjustments','email_log')), 'RLS på alla nya tabeller');
 
 \echo ALLA DB-TESTER GICK IGENOM
+
+
+-- ---- Sprint 01: expected-total guard (migration 0013) ----
+-- A mismatched quote must roll back the entire create_order transaction.
+set role service_role;
+select pg_temp.fails($q$
+  select create_order_checked('sprint-quote-mismatch-00001', null, 'quoted@test.se', 'sv', '{"name":"Quote Test"}'::jsonb,
+    jsonb_build_array(jsonb_build_object('id', (select p_fv from ids), 'qty', 1)),
+    1, null)
+$q$, 'checkout_price_changed', 'ändrat totalbelopp avvisas atomärt');
+reset role;
+select pg_temp.ok((select count(*) from orders where idempotency_key = 'sprint-quote-mismatch-00001') = 0,
+  'felaktig total skapar ingen order');
+set role service_role;
+create temp table r_checked as select create_order_checked(
+  'sprint-quote-confirmed-0001', null, 'quoted@test.se', 'sv', '{"name":"Quote Test"}'::jsonb,
+  jsonb_build_array(jsonb_build_object('id', (select p_fv from ids), 'qty', 1)), 24800, null) as j;
+select pg_temp.ok((select (j->>'total_ore')::integer from r_checked) = 24800,
+  'korrekt kontrollerad totalsumma skapar order');
+reset role;
