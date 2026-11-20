@@ -17,8 +17,7 @@ const basic = () => ({
   now: Date.parse("2026-11-20T12:00:00Z"),
 });
 const good = (quote: ReturnType<typeof calculateCheckoutQuote>) => {
-  assert.equal(quote.ok, true);
-  if (!quote.ok) throw Error(quote.error);
+  if (!quote.ok) throw new Error(`Expected a valid checkout quote: ${quote.error}`);
   return quote;
 };
 const bad = (quote: ReturnType<typeof calculateCheckoutQuote>) => assert.equal(quote.ok, false);
