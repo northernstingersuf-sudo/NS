@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/components/CartProvider";
 import { sek } from "@/lib/money";
@@ -12,9 +12,7 @@ const input = "mt-1 w-full border border-line bg-transparent px-3 py-3 text-sm";
 const label = "block text-xs font-medium uppercase tracking-wider text-mute";
 const KEY_STORE = "ns-checkout-key";
 
-type Shipping = { flat_ore: number; free_over_ore: number | null };
-
-export default function CheckoutForm({ shipping }: { shipping: Shipping }) {
+export default function CheckoutForm() {
   const { items, clear, ready } = useCart();
   const router = useRouter();
   const [quote, setQuote] = useState<CheckoutQuote | null>(null);
@@ -23,7 +21,6 @@ export default function CheckoutForm({ shipping }: { shipping: Shipping }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const formRef = useRef<HTMLFormElement>(null);
 
   const cartSig = useMemo(() => JSON.stringify(items.map((i) => [i.id, i.qty]).sort()), [items]);
 
@@ -95,7 +92,7 @@ export default function CheckoutForm({ shipping }: { shipping: Shipping }) {
   const fe = (k: string) => fieldErrors[k] ? <span role="alert" className="mt-1 block text-xs text-red-700">{fieldErrors[k]}</span> : null;
 
   return (
-    <form ref={formRef} onSubmit={onSubmit} noValidate className="mt-10 grid gap-12 lg:grid-cols-[1.2fr_1fr]">
+    <form onSubmit={onSubmit} noValidate className="mt-10 grid gap-12 lg:grid-cols-[1.2fr_1fr]">
       <div className="space-y-5">
         <h2 className="text-xl font-semibold">Leverans</h2>
         <label className="block"><span className={label}>E-post</span><input name="email" type="email" required autoComplete="email" className={input} />{fe("email")}</label>
