@@ -2,7 +2,6 @@
 
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
-import { createPublicClient } from "@/lib/supabase/public";
 import { createAdminClient, hasServiceRole } from "@/lib/supabase/admin";
 import { notifyOrder } from "@/lib/notify";
 import { isEmailConfigured, notifyEmail } from "@/lib/notify-email";
