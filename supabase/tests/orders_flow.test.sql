@@ -1,4 +1,4 @@
--- Databastest för 0006. Körs mot en TOM lokal testdatabas efter 00_local_bootstrap.sql + migrationerna 0001–0006.
+-- Databastest för 0006–0013. Körs mot en TOM lokal testdatabas efter 00_local_bootstrap.sql + migrationerna 0001–0006.
 -- Aldrig mot produktion. Avbryter med fel vid första misslyckade kontroll.
 \set ON_ERROR_STOP on
 \set QUIET on
@@ -322,7 +322,6 @@ select pg_temp.ok((select quantity||'/'||reserved from inventory where product_i
 -- ---- 13. RLS på nya tabeller ----
 select pg_temp.ok((select bool_and(relrowsecurity) from pg_class where relname in ('shop_settings','order_events','notification_log','stock_adjustments','email_log')), 'RLS på alla nya tabeller');
 
-\echo ALLA DB-TESTER GICK IGENOM
 
 
 -- ---- Sprint 01: expected-total guard (migration 0013) ----
@@ -343,3 +342,5 @@ create temp table r_checked as select create_order_checked(
 select pg_temp.ok((select (j->>'total_ore')::integer from r_checked) = 24800,
   'korrekt kontrollerad totalsumma skapar order');
 reset role;
+
+\echo ALLA DB-TESTER GICK IGENOM
