@@ -121,7 +121,7 @@ export default function CheckoutForm({ shipping }: { shipping: Shipping }) {
         <button disabled={pending || blocked} className="mt-6 w-full bg-ink py-4 text-sm text-paper disabled:bg-line disabled:text-mute">
           {pending ? "Skapar beställning…" : "Slutför köp – betalningsskyldighet"}
         </button>
-        <p className="mt-3 text-xs leading-relaxed text-mute">Du betalar i nästa steg med Swish. Ordern behandlas först när vi har kontrollerat att betalningen kommit in. Genom att slutföra köpet åtar du dig att betala totalbeloppet som visas.</p>
+        <p className="mt-3 text-xs leading-relaxed text-mute">Du betalar i nästa steg med Swish. Betala eller rapportera betalningen inom två timmar, annars avbryts obetalda order automatiskt. Ordern behandlas först när vi har kontrollerat att betalningen kommit in. Genom att slutföra köpet åtar du dig att betala totalbeloppet som visas.</p>
         <p className="mt-2 text-xs leading-relaxed text-mute">Läs <Link href="/kopvillkor" className="underline">köpvillkoren</Link>, <Link href="/frakt-och-leverans" className="underline">leveransinformationen</Link> och informationen om <Link href="/retur-och-reklamation" className="underline">ångerrätt och reklamation</Link> före köp.</p>
       </aside>
     </form>
