@@ -2,6 +2,7 @@ export type OperationalSeverity = "ok" | "warning" | "critical";
 export type OperationalInputs = {
   now: number;
   lastExpiryRun: string | null;
+  expiryEnabled: boolean | null;
   eligibleExpiredOrders: number | null;
   reportedPayments: number | null;
   failedEmails: number | null;
@@ -24,7 +25,10 @@ export function operationalSignals(x: OperationalInputs): OperationalSignal[] {
     { label: "Automatisk orderstädning", status: scheduler,
       value: !Number.isFinite(lastRunMs) ? "Ingen körning" : scheduler === "ok" ? "Aktiv" : "Försenad",
       detail: "Senaste körning: " + (Number.isFinite(lastRunMs) ? new Date(lastRunMs).toLocaleString("sv-SE", { timeZone: "Europe/Stockholm" }) : "saknas") },
-    countSignal("Obetalda order över 2 timmar", x.eligibleExpiredOrders, "Ska normalt behandlas av nästa cron-körning (endast utan betalningsrapport)."),
+    { label: "Automatisk avbokning", status: x.expiryEnabled === true ? "ok" : x.expiryEnabled === false ? "warning" : "critical",
+      value: x.expiryEnabled === true ? "Aktiverad" : x.expiryEnabled === false ? "Pausad" : "Okänd",
+      detail: x.expiryEnabled === true ? "Avbokar order över 24 timmar utan betalningsrapport." : "Avstängd tills butiksägaren kontrollerat utestående Swish-betalningar och aktiverat policyn." },
+    countSignal("Obetalda order över 24 timmar", x.eligibleExpiredOrders, "Ska behandlas efter aktivering (endast utan betalningsrapport)."),
     countSignal("Betalningar rapporterade för kontroll", x.reportedPayments, "Dessa order autoavbokas inte; verifiera Swish manuellt."),
     countSignal("Misslyckade kundmejl", x.failedEmails, "Öppna ordern och försök skicka mejlet igen."),
     countSignal("Misslyckade Discord-notiser", x.failedDiscord, "Öppna ordern och försök skicka notisen igen."),
