@@ -19,7 +19,7 @@ export async function subscribe(_: NewsState, f: FormData): Promise<NewsState> {
   const email = String(f.get("email") ?? "").trim().toLowerCase();
   if (email.length > 254 || !EMAIL.test(email)) return { error: "Ange en giltig e-postadress." };
   if (f.get("consent") !== "on") return { error: "Du måste aktivt godkänna nyhetsbrevet." };
-  if (!rateLimit(`newsletter:${email}`, 3, 10 * 60_000)) return { error: "För många försök. Vänta en stund och försök igen." };
+  if (!(await rateLimit(`newsletter:${email}`, 3, 10 * 60_000)) return { error: "För många försök. Vänta en stund och försök igen." };
 
   try {
     const sb = createAdminClient();
@@ -84,7 +84,7 @@ export async function subscribe(_: NewsState, f: FormData): Promise<NewsState> {
 export async function confirmNewsletter(formData: FormData) {
   const token = String(formData.get("token") ?? "").trim();
   if (!UUID.test(token)) redirect("/nyhetsbrev/bekraftat?status=ogiltig");
-  if (!rateLimit(`newsletter-confirm:${token}`, 5, 10 * 60_000)) redirect("/nyhetsbrev/bekraftat?status=fel");
+  if (!(await rateLimit(`newsletter-confirm:${token}`, 5, 10 * 60_000)) redirect("/nyhetsbrev/bekraftat?status=fel");
   try {
     const sb = createAdminClient();
     const { data, error } = await sb.from("newsletter_subscribers")
@@ -113,7 +113,7 @@ export async function confirmNewsletter(formData: FormData) {
 export async function unsubscribe(formData: FormData) {
   const token = String(formData.get("token") ?? "").trim();
   if (!UUID.test(token)) redirect("/nyhetsbrev/avregistrerad?status=ogiltig");
-  if (!rateLimit(`newsletter-unsubscribe:${token}`, 5, 10 * 60_000)) {
+  if (!(await rateLimit(`newsletter-unsubscribe:${token}`, 5, 10 * 60_000)) {
     redirect("/nyhetsbrev/avregistrerad?status=fel");
   }
 
