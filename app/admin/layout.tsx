@@ -10,6 +10,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <nav aria-label="Administration" className="mb-10 flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-line pb-5 font-mono text-xs uppercase tracking-wider">
         <Link href="/admin" className="font-semibold">Översikt</Link>
         <Link href="/admin/ordrar">Beställningar</Link>
+        <Link href="/admin/drift">Driftstatus</Link>
         <Link href="/admin/produkter">Produkter</Link>
         <Link href="/admin/produkter/ny">Ny produkt</Link>
         <Link href="/admin/lager">Lager</Link>
