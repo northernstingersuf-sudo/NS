@@ -21,7 +21,7 @@ export async function requestWithdrawal(_: WithdrawalState, f: FormData): Promis
   if (name.length < 2 || name.length > 100) return { error: "Ange ditt namn (2–100 tecken)." };
   if (email.length > 254 || !EMAIL.test(email)) return { error: "Ange den e-postadress som användes vid köpet." };
   if (f.get("confirm_withdrawal") !== "on") return { error: "Bekräfta uttryckligen att du vill frånträda köpet." };
-  if (!rateLimit(`withdrawal:${email}`, 5, 10 * 60_000)) return { error: "För många försök. Vänta en stund och försök igen." };
+  if (!(await rateLimit(`withdrawal:${email}`, 5, 10 * 60_000)) return { error: "För många försök. Vänta en stund och försök igen." };
 
   try {
     const sb = createAdminClient();
