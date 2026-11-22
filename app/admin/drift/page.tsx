@@ -8,15 +8,16 @@ export const dynamic = "force-dynamic";
 export default async function OperationsPage() {
   const { sb } = await requireAdmin();
   const now = Date.now();
-  const cutoff = new Date(now - 2 * 60 * 60_000).toISOString();
+  const cutoff = new Date(now - 24 * 60 * 60_000).toISOString();
   const count = async (table: string, filter: (q: any) => any): Promise<number | null> => {
     const { count, error } = await filter(sb.from(table).select("id", { count: "exact", head: true }));
     if (error) { console.error(`[operations] unable to count ${table} (${error.code})`); return null; }
     return count ?? 0;
   };
-  const [lastRun, expiredOrders, reported, emails, discord, stock] = await Promise.all([
+  const [lastRun, policy, expiredOrders, reported, emails, discord, stock] = await Promise.all([
     sb.from("system_job_runs").select("created_at,processed").eq("job_name", "expire_unpaid_orders")
       .order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    sb.from("shop_settings").select("value").eq("key", "auto_expiry").maybeSingle(),
     (async () => {
       const { count, error } = await sb.from("payments")
         .select("id,orders!inner(status,created_at)", { count: "exact", head: true })
@@ -35,6 +36,7 @@ export default async function OperationsPage() {
     : (stock.data ?? []).filter(x => x.quantity - x.reserved <= (x.low_stock_threshold ?? 3)).length;
   const signals = operationalSignals({
     now, lastExpiryRun: lastRun.error ? null : lastRun.data?.created_at ?? null,
+    expiryEnabled: policy.error || !policy.data ? null : (policy.data.value as { enabled?: boolean })?.enabled === true,
     eligibleExpiredOrders: expiredOrders, reportedPayments: reported,
     failedEmails: emails, failedDiscord: discord, lowStockProducts: lowStock,
   });
@@ -63,7 +65,7 @@ export default async function OperationsPage() {
         </div>)}
       </dl>
       <p className="mt-6 text-xs text-mute">
-        Cron loggar en körning var femte minut när migration 0014 är aktiverad.
+        Cron loggar en körning var femte minut när migration 0014 är installerad. Avbokning är pausad tills policyn aktiveras separat.
         Saknade värden visas som fel, inte som noll. Det här är en intern översikt,
         inte ett externt jourlarm.
       </p>
