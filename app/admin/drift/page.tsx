@@ -17,22 +17,25 @@ export default async function OperationsPage() {
   const [lastRun, expiredOrders, reported, emails, discord, stock] = await Promise.all([
     sb.from("system_job_runs").select("created_at,processed").eq("job_name", "expire_unpaid_orders")
       .order("created_at", { ascending: false }).limit(1).maybeSingle(),
-    count("payments", q => q.eq("status", "initiated").is("reported_at", null)
-      .eq("orders.status", "pending").lte("orders.created_at", cutoff)),
+    (async () => {
+      const { count, error } = await sb.from("payments")
+        .select("id,orders!inner(status,created_at)", { count: "exact", head: true })
+        .eq("status", "initiated").is("reported_at", null)
+        .eq("orders.status", "pending").lte("orders.created_at", cutoff);
+      if (error) { console.error(`[operations] expired orders lookup failed (${error.code})`); return null; }
+      return count ?? 0;
+    })(),
     count("payments", q => q.eq("status", "initiated").not("reported_at", "is", null)),
     count("email_log", q => q.eq("status", "failed")),
     count("notification_log", q => q.eq("status", "failed")),
     sb.from("inventory").select("quantity,reserved,low_stock_threshold").limit(1000),
   ]);
 
-  // payments -> orders join must be inner to enforce the pending-order filters.
-  // An incorrect relationship query returns an error and is shown as unavailable.
-  const eligible = expiredOrders;
   const lowStock = stock.error ? null
     : (stock.data ?? []).filter(x => x.quantity - x.reserved <= (x.low_stock_threshold ?? 3)).length;
   const signals = operationalSignals({
     now, lastExpiryRun: lastRun.error ? null : lastRun.data?.created_at ?? null,
-    eligibleExpiredOrders: eligible, reportedPayments: reported,
+    eligibleExpiredOrders: expiredOrders, reportedPayments: reported,
     failedEmails: emails, failedDiscord: discord, lowStockProducts: lowStock,
   });
   return (
