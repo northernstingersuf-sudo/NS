@@ -15,6 +15,7 @@ create table if not exists private.rate_limit_buckets (
   expires_at timestamptz not null
 );
 alter table private.rate_limit_buckets enable row level security;
+create index if not exists rate_limit_buckets_expiry_idx on private.rate_limit_buckets(expires_at);
 revoke all on private.rate_limit_buckets from public, anon, authenticated, service_role;
 
 -- Atomic fixed-window rate limiting. Only trusted server code (service_role) can call it.
@@ -55,7 +56,9 @@ grant execute on function public.consume_rate_limit(text,integer,integer) to ser
 -- Deploying this migration DOES NOT enable automatic cancellation.
 insert into public.shop_settings (key, value)
 values ('auto_expiry', '{"enabled":false}'::jsonb)
-on conflict (key) do nothing;
+on conflict (key) do update set
+  value = jsonb_set(public.shop_settings.value, '{enabled}', 'false'::jsonb),
+  updated_at = now();
 
 -- Readable only by admins. The cron function records a heartbeat even when no orders expire.
 create table if not exists public.system_job_runs (
@@ -93,6 +96,12 @@ begin
      or p_at is null then
     raise exception 'invalid_expiry_parameters' using errcode = '22023';
   end if;
+
+  -- Purge transient counters and old heartbeats regardless of the expiry switch.
+  delete from private.rate_limit_buckets
+    where expires_at < clock_timestamp() - interval '1 day';
+  delete from public.system_job_runs
+    where created_at < now() - interval '30 days';
 
   -- With manual Swish verification, never cancel without explicit owner opt-in.
   if not exists (select 1 from public.shop_settings
@@ -160,12 +169,6 @@ begin
 
   insert into public.system_job_runs (job_name, processed)
   values ('expire_unpaid_orders', v_count);
-  -- Lightweight retention; these tables contain no raw customer identifiers.
-  delete from private.rate_limit_buckets
-    where expires_at < clock_timestamp() - interval '1 day';
-  delete from public.system_job_runs
-    where created_at < now() - interval '30 days';
-
   return v_count;
 end;
 $$;
