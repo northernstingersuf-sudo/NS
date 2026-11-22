@@ -57,7 +57,7 @@ grant execute on function public.consume_rate_limit(text,integer,integer) to ser
 insert into public.shop_settings (key, value)
 values ('auto_expiry', '{"enabled":false}'::jsonb)
 on conflict (key) do update set
-  value = jsonb_set(public.shop_settings.value, '{enabled}', 'false'::jsonb),
+  value = '{"enabled":false}'::jsonb,
   updated_at = now();
 
 -- Readable only by admins. The cron function records a heartbeat even when no orders expire.
