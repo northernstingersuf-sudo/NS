@@ -4,7 +4,7 @@ import { operationalSignals } from "../lib/operational-monitoring";
 
 const now = Date.parse("2026-11-22T12:00:00Z");
 const good = {
-  now, lastExpiryRun: new Date(now - 5 * 60_000).toISOString(),
+  now, lastExpiryRun: new Date(now - 5 * 60_000).toISOString(), expiryEnabled: true,
   eligibleExpiredOrders: 0, reportedPayments: 0, failedEmails: 0,
   failedDiscord: 0, lowStockProducts: 0,
 };
@@ -19,11 +19,19 @@ test("backlog and failed delivery attempts are visible alerts", () => {
   const statuses = operationalSignals({
     ...good, eligibleExpiredOrders: 3, reportedPayments: 1, failedEmails: 2, failedDiscord: 4, lowStockProducts: 1,
   });
-  assert.deepEqual(statuses.slice(1).map(s => s.status), Array(5).fill("warning"));
+  assert.deepEqual(statuses.slice(2).map(s => s.status), Array(5).fill("warning"));
 });
 test("unavailable database metrics are never represented as zero", () => {
   const signals = operationalSignals({ ...good, eligibleExpiredOrders: null, failedEmails: null });
-  assert.equal(signals[1].value, "—");
-  assert.equal(signals[1].status, "critical");
-  assert.equal(signals[3].status, "critical");
+  assert.equal(signals[2].value, "—");
+  assert.equal(signals[2].status, "critical");
+  assert.equal(signals[4].status, "critical");
+});
+
+test("auto-cancellation is explicitly shown as paused before owner opt-in", () => {
+  const paused = operationalSignals({ ...good, expiryEnabled: false });
+  assert.equal(paused[1].status, "warning");
+  assert.equal(paused[1].value, "Pausad");
+  const unknown = operationalSignals({ ...good, expiryEnabled: null });
+  assert.equal(unknown[1].status, "critical");
 });
