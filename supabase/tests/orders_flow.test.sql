@@ -322,4 +322,73 @@ select pg_temp.ok((select quantity||'/'||reserved from inventory where product_i
 -- ---- 13. RLS på nya tabeller ----
 select pg_temp.ok((select bool_and(relrowsecurity) from pg_class where relname in ('shop_settings','order_events','notification_log','stock_adjustments','email_log')), 'RLS på alla nya tabeller');
 
-\echo ALLA DB-TESTER GICK IGENOM
+
+-- ---- Sprint 02: shared rate limiting and safe automatic expiry ----
+-- Requires migration 0014. The actual cron scheduler is never run by these tests.
+set role service_role;
+select pg_temp.ok(public.consume_rate_limit(repeat('a',64), 2, 600), 'rate-limit första försöket tillåts');
+select pg_temp.ok(public.consume_rate_limit(repeat('a',64), 2, 600), 'rate-limit andra försöket tillåts');
+select pg_temp.ok(not public.consume_rate_limit(repeat('a',64), 2, 600), 'rate-limit tredje försöket blockeras atomärt');
+select pg_temp.ok(public.consume_rate_limit(repeat('b',64), 2, 600), 'annan användare har egen rate-limit');
+select pg_temp.fails($q$ select public.consume_rate_limit('raw-email@test.se', 2, 600) $q$,
+  'invalid_rate_limit_parameters', 'rå e-post kan inte användas som bucket');
+reset role;
+set role anon;
+select pg_temp.fails($q$ select public.consume_rate_limit(repeat('a',64), 2, 600) $q$,
+  '42501', 'anon kan inte anropa rate limiter-RPC');
+select pg_temp.fails($q$ select private.expire_unpaid_orders() $q$,
+  '42501', 'anon kan inte köra orderstädning');
+select pg_temp.ok((select count(*) from public.system_job_runs) = 0,
+  'cron-körningar är privata för admin');
+reset role;
+
+-- Final state of earlier tests has 2 fiskevågar left and no reservation.
+select pg_temp.ok((select quantity||'/'||reserved from inventory where product_id = (select p_fv from ids)) = '2/0',
+  'förväntat lager före expiry-test');
+set role service_role;
+create temp table r_expire as select public.create_order(
+  'sprint02-unpaid-expire-0001', null, 'expire@test.se', 'sv', '{"name":"Expiry Test"}',
+  jsonb_build_array(jsonb_build_object('id', (select p_fv from ids), 'qty', 1)),
+  'TEST10') as j;
+create temp table r_reported as select public.create_order(
+  'sprint02-reported-hold-0001', null, 'reported@test.se', 'sv', '{"name":"Reported Test"}',
+  jsonb_build_array(jsonb_build_object('id', (select p_fv from ids), 'qty', 1))) as j;
+select public.report_payment((select (j->>'guest_token')::uuid from r_reported));
+reset role;
+select pg_temp.share();
+select pg_temp.ok((select reserved from inventory where product_id = (select p_fv from ids)) = 2,
+  'två order reserverar varsin vara');
+select pg_temp.ok((select used from discounts where code='TEST10') = 1,
+  'rabatten är reserverad i obetald order');
+
+-- Execute as database owner, just like Supabase Cron. Simulated time avoids waiting 2 hours.
+select pg_temp.ok(private.expire_unpaid_orders(100, now() + interval '3 hours') >= 1,
+  'gammal obetald och orapporterad order städas');
+select pg_temp.ok((select o.status::text from public.orders o
+ where o.id=(select (j->>'order_id')::uuid from r_expire))='cancelled',
+ 'order utan rapport avbryts');
+select pg_temp.ok((select p.status::text from public.payments p
+ where p.order_id=(select (j->>'order_id')::uuid from r_expire))='cancelled',
+ 'betalningspost avbryts');
+select pg_temp.ok((select o.status::text from public.orders o
+ where o.id=(select (j->>'order_id')::uuid from r_reported))='pending',
+ 'rapporterad Swish-betalning lämnas för manuell granskning');
+select pg_temp.ok((select reserved from inventory where product_id = (select p_fv from ids))=1,
+ 'en reservation släpps, rapporterad order behåller sin');
+select pg_temp.ok((select used from discounts where code='TEST10')=0,
+ 'avbruten order återställer rabattkodens användning');
+select pg_temp.ok((select count(*) from public.order_events where kind='status_changed'
+  and order_id=(select (j->>'order_id')::uuid from r_expire)
+  and detail->>'reason'='payment_timeout')=1,
+ 'timeout genererar en spårbar orderhändelse');
+select pg_temp.ok((select processed from public.system_job_runs
+  where job_name='expire_unpaid_orders' order by created_at desc,id desc limit 1)>=1,
+ 'cron-körning loggas för admin');
+select pg_temp.ok(private.expire_unpaid_orders(100, now() + interval '3 hours')=0,
+ 'upprepad körning är idempotent');
+select pg_temp.ok((select reserved from inventory where product_id = (select p_fv from ids))=1,
+ 'upprepad körning frigör inte lagret två gånger');
+select pg_temp.ok((select count(*) from cron.job
+  where jobname='northern-stingers-expire-unpaid-orders')=1,
+ 'femminuters-cron är registrerad');
+\n\echo ALLA DB-TESTER GICK IGENOM
