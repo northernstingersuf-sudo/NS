@@ -338,8 +338,8 @@ select pg_temp.fails($q$ select public.consume_rate_limit(repeat('a',64), 2, 600
   '42501', 'anon kan inte anropa rate limiter-RPC');
 select pg_temp.fails($q$ select private.expire_unpaid_orders() $q$,
   '42501', 'anon kan inte köra orderstädning');
-select pg_temp.ok((select count(*) from public.system_job_runs) = 0,
-  'cron-körningar är privata för admin');
+select pg_temp.fails($q$ select count(*) from public.system_job_runs $q$,
+  '42501', 'anon saknar rätt att läsa cron-körningar');
 reset role;
 
 -- Final state of earlier tests has 2 fiskevågar left and no reservation.
