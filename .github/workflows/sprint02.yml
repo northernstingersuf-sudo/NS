@@ -1,0 +1,31 @@
+name: Sprint 02 code checks
+
+on:
+  pull_request:
+    paths:
+      - "app/**"
+      - "lib/**"
+      - "tests/**"
+      - "supabase/migrations/**"
+      - "supabase/tests/**"
+      - "package*.json"
+      - ".github/workflows/sprint02.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Typecheck and unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
