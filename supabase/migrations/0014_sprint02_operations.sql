@@ -3,6 +3,7 @@
 -- Requires the Supabase Cron (pg_cron) extension; job runs every 5 minutes after applying.
 -- Manual Swish reports are deliberately EXCLUDED from automatic cancellation.
 -- Pending orders with a reported payment require human review.
+-- The scheduler runs but cancellation stays opt-in after payment reconciliation.
 
 create schema if not exists private;
 revoke all on schema private from public, anon, authenticated;
@@ -51,6 +52,11 @@ $$;
 revoke all on function public.consume_rate_limit(text,integer,integer) from public, anon, authenticated;
 grant execute on function public.consume_rate_limit(text,integer,integer) to service_role;
 
+-- Deploying this migration DOES NOT enable automatic cancellation.
+insert into public.shop_settings (key, value)
+values ('auto_expiry', '{"enabled":false}'::jsonb)
+on conflict (key) do nothing;
+
 -- Readable only by admins. The cron function records a heartbeat even when no orders expire.
 create table if not exists public.system_job_runs (
   id bigint generated always as identity primary key,
@@ -88,13 +94,21 @@ begin
     raise exception 'invalid_expiry_parameters' using errcode = '22023';
   end if;
 
+  -- With manual Swish verification, never cancel without explicit owner opt-in.
+  if not exists (select 1 from public.shop_settings
+      where key = 'auto_expiry' and value->>'enabled' = 'true') then
+    insert into public.system_job_runs (job_name, processed)
+    values ('expire_unpaid_orders', 0);
+    return 0;
+  end if;
+
   -- Match the lock order used by admin_verify_payment and report_payment:
   -- lock order first, payment second. SKIP LOCKED supports concurrent workers.
   for v_order in
     select o.id, o.order_number, o.discount_code
     from public.orders o
     where o.status = 'pending'
-      and o.created_at <= p_at - interval '2 hours'
+      and o.created_at <= p_at - interval '24 hours'
       and exists (
         select 1 from public.payments p
         where p.order_id = o.id and p.status = 'initiated'
@@ -137,7 +151,7 @@ begin
     insert into public.order_events (order_id, kind, detail)
       values (v_order.id, 'status_changed',
         jsonb_build_object('from','pending','to','cancelled',
-                           'reason','payment_timeout','timeout_minutes',120));
+                           'reason','payment_timeout','timeout_minutes',1440));
     insert into public.audit_logs (actor, action, target, meta)
       values (null, 'order.expired', v_order.id::text,
         jsonb_build_object('order_number',v_order.order_number,'reason','payment_timeout'));
@@ -160,7 +174,8 @@ revoke all on function private.expire_unpaid_orders(integer,timestamptz)
   from public, anon, authenticated, service_role;
 
 -- Supabase Cron is the scheduler, not Vercel or a public endpoint.
--- Applying this migration ENABLES the five-minute job in that database.
+-- Applying schedules heartbeats but DOES NOT enable cancellation.
+-- To enable after payment reconciliation, set shop_settings.auto_expiry.enabled=true.
 -- Keep cron registration LAST: unsuccessful migration cannot install a partial job.
 create extension if not exists pg_cron with schema pg_catalog;
 select cron.schedule(
