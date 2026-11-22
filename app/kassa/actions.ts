@@ -59,7 +59,7 @@ export async function placeOrder(raw: unknown): Promise<PlaceOrderResult> {
 
   const h = await headers();
   const ip = (h.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
-  if (!rateLimit(`order:${ip}`, 8, 10 * 60_000)) return { ok: false, error: "För många försök. Vänta en stund och försök igen." };
+  if (!(await rateLimit(`order:${ip}`, 8, 10 * 60_000)) return { ok: false, error: "För många försök. Vänta en stund och försök igen." };
 
   const cfg = await getCheckoutConfig();
   if (!cfg.open) return { ok: false, error: `${cfg.reason} Försök igen senare.` };
