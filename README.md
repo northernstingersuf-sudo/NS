@@ -70,6 +70,82 @@ Så här kommer du igång:
 
 Utan `RESEND_API_KEY`/`EMAIL_FROM` skickas inga mejl. I v12 hålls kassan stängd tills Resend är konfigurerat, eftersom orderbekräftelser och mottagningsbevis för ångermeddelanden måste kunna skickas. Misslyckade transaktionsmejl syns i admin och kan skickas om när tjänsten fungerar.
 
+## Sprint 02 – drift, gemensam rate-limit och obetalda order
+
+> **Branch-only:** denna PR ändrar inte Supabase eller Vercel. Migrering 0014 ska testas på ett
+> isolerat Supabase-projekt innan någonting installeras i produktion.
+
+### Installationsordning (staging först)
+
+1. Behåll samtliga befintliga migrationer. Sprint 02 byggs på `main` (0012).
+   Om Sprint 01 också ska finnas i samma databas: kör även dess 0013-migrering
+   **före** 0014. Inga Sprint 01-filer ingår i denna branch.
+2. Applicera `supabase/migrations/0014_sprint02_operations.sql` mot **staging**.
+   Migreringen kräver Supabase Cron (`pg_cron`). Den installerar tabeller/RPC:er
+   och en cron-körning var femte minut.
+3. **Obs: avbokningar är AVSTÄNGDA som standard.** Cron skriver endast en
+   körningslogg. Detta är avsiktligt: med manuell Swish-betalning är en order
+   utan klick på ”Jag har betalat” inte bevisligen obetald.
+4. Kontrollera `/admin/drift`: ”Automatisk avbokning” ska visa **Pausad**
+   och ”Automatisk orderstädning” ska få en färsk körning.
+5. Kör enhetstester och databastester på ett **separat, tomt, lokalt testprojekt**,
+   inklusive `supabase/tests/orders_flow.test.sql` som nu innehåller Sprint 02-testfall.
+   Bekräfta att antalet reserverade varor och användningar av rabattkoder återställs
+   och att `payments.reported_at IS NOT NULL` aldrig autoavbokas.
+6. Om butiksägaren **uttryckligen** har kontrollerat bankens Swish-transaktioner,
+   eventuella försenade betalningar och rutinen för kundinformation kan policyn
+   aktiveras. Exempel (kör **endast** i avsett testprojekt först):
+
+   ```sql
+   update public.shop_settings
+      set value = jsonb_set(value, '{enabled}', 'true'::jsonb),
+          updated_at = now()
+    where key = 'auto_expiry';
+   ```
+
+   Återställ till `false` för att pausa avbokningar. Ändra aldrig detta utan att
+   förstå att gamla, orapporterade order då kan avbokas vid nästa cron-körning.
+
+### Beteende och risker
+
+- **24 timmar efter orderns skapande** är gränsen vid aktiverad avbokning.
+  Endast `orders.status = pending`, `payments.status = initiated`
+  och `payments.reported_at IS NULL` kan avbokas.
+- Kundens ”Jag har betalat” hindrar automatisk avbokning men
+  bekräftar **inte** själva Swish-betalningen. Admin måste fortfarande verifiera
+  mot bankkontot. Kundens betalning kan också ha gått igenom utan att kunden
+  tryckt på rapportknappen; detta är huvudskälet till att funktionen är avstängd.
+- Samma transaktion uppdaterar order, betalning, reserverat lager,
+  rabattutnyttjande, orderhändelse och auditlogg. Konkurrrenta arbetare
+  använder `FOR UPDATE SKIP LOCKED` och kontroll av betalningsstatus.
+- Delad rate limiting för alla befintliga server actions använder PostgreSQL
+  och hashade HMAC-nycklar. Databasfel **blockerar** anropet (fail closed).
+  `SUPABASE_SERVICE_ROLE_KEY` behövs; `RATE_LIMIT_HASH_SECRET` är valfri
+  men rekommenderas (lång, konsekvent hemlighet i alla Vercel-instanser).
+  Lägg aldrig den i en `NEXT_PUBLIC_`-variabel.
+- Konfigurationskrav: **migrering 0014 måste köras före** att ny kod
+  med asynkron `rateLimit` deployas, annars blockeras offentliga actions.
+- `/admin/drift` visar cron-körning, pausad/aktiv policy, gammal orderkö,
+  betalningsrapporter för manuell kontroll, misslyckade e-post-/Discord-notiser
+  och lågt lager. Det är en **adminöversikt**, inte en extern larmtjänst.
+- Före aktivering i skarp drift: formulera en tydlig kundinformation om
+  24-timmarsgränsen och rutin för sena Swish-betalningar/återbetalning.
+  Ingen automatisk återbetalning eller kundavisering ingår i Sprint 02.
+- Följ jobbkörningar i Supabase Dashboard → Cron eller i databasen via
+  `select jobname,schedule from cron.job`. Kontrollera att `system_job_runs`
+  fortsätter uppdateras. Inga hemligheter eller kundmejl loggas i drifttabellen.
+
+### Testkommando
+
+```bash
+npm ci
+npm run typecheck
+npm test
+```
+
+SQL-tester måste köras lokalt med Supabase/PostgreSQL och `pg_cron`
+efter bootstrap + migrationer; de körs **inte** av GitHub Actions.
+
 ## Miljövariabler
 
 `NEXT_PUBLIC_SUPABASE_URL` och `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` används av den publika Supabase-klienten. `SUPABASE_SERVICE_ROLE_KEY`, `SWISH_NUMBER`, `DISCORD_WEBHOOK_URL`, `RESEND_API_KEY` och andra hemligheter ska endast sättas på servern. Använd aldrig `NEXT_PUBLIC_`-prefix för hemligheter.
