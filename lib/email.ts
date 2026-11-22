@@ -27,7 +27,7 @@ const COPY: Record<EmailKind, { subject: (n: string) => string; heading: string;
   order_confirmation: {
     subject: (n) => `Vi har tagit emot din beställning ${n}`,
     heading: "Tack för din beställning",
-    lead: "Vi har tagit emot din beställning. Den behandlas först när vi har kontrollerat att din Swish-betalning har kommit in.",
+    lead: "Vi har tagit emot din beställning. Den behandlas först när vi har kontrollerat att din Swish-betalning har kommit in. Betala eller rapportera din betalning inom två timmar, annars avbryts ordern automatiskt.",
   },
   payment_verified: {
     subject: (n) => `Din betalning är mottagen – ${n}`,
