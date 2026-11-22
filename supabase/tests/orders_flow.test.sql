@@ -361,8 +361,16 @@ select pg_temp.ok((select reserved from inventory where product_id = (select p_f
 select pg_temp.ok((select used from discounts where code='TEST10') = 1,
   'rabatten är reserverad i obetald order');
 
--- Execute as database owner, just like Supabase Cron. Simulated time avoids waiting 2 hours.
-select pg_temp.ok(private.expire_unpaid_orders(100, now() + interval '3 hours') >= 1,
+-- Migration must not silently cancel orders. Only an explicit opt-in enables it.
+select pg_temp.ok(private.expire_unpaid_orders(100, now() + interval '25 hours') = 0,
+  'auto-expiry är avstängd vid installation');
+select pg_temp.ok((select status::text from public.orders where id =
+  (select (j->>'order_id')::uuid from r_expire))='pending',
+  'avstängd auto-expiry lämnar gamla order orörda');
+update public.shop_settings set value = jsonb_set(value, '{enabled}', 'true'::jsonb)
+  where key = 'auto_expiry';
+-- Execute as database owner, just like Supabase Cron. Simulated time avoids waiting 24 hours.
+select pg_temp.ok(private.expire_unpaid_orders(100, now() + interval '25 hours') >= 1,
   'gammal obetald och orapporterad order städas');
 select pg_temp.ok((select o.status::text from public.orders o
  where o.id=(select (j->>'order_id')::uuid from r_expire))='cancelled',
@@ -384,7 +392,7 @@ select pg_temp.ok((select count(*) from public.order_events where kind='status_c
 select pg_temp.ok((select processed from public.system_job_runs
   where job_name='expire_unpaid_orders' order by created_at desc,id desc limit 1)>=1,
  'cron-körning loggas för admin');
-select pg_temp.ok(private.expire_unpaid_orders(100, now() + interval '3 hours')=0,
+select pg_temp.ok(private.expire_unpaid_orders(100, now() + interval '25 hours')=0,
  'upprepad körning är idempotent');
 select pg_temp.ok((select reserved from inventory where product_id = (select p_fv from ids))=1,
  'upprepad körning frigör inte lagret två gånger');
