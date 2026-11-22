@@ -13,7 +13,7 @@ export const metadata: Metadata = { title: "Din beställning", robots: { index: 
 export const dynamic = "force-dynamic";
 
 const STATUS: Record<CustomerStatus, { title: string; text: string }> = {
-  awaiting_payment: { title: "Inväntar betalning", text: "Betala med Swish nedan inom 2 timmar efter beställningen. Obetalda order utan betalningsrapport avbryts automatiskt efter den tiden. Vi behandlar ordern först när vi har kontrollerat betalningen." },
+  awaiting_payment: { title: "Inväntar betalning", text: "Betala med Swish nedan. Vi behandlar ordern först när vi har kontrollerat att betalningen kommit in." },
   reported: { title: "Betalning rapporterad – inväntar kontroll", text: "Tack! Vi kontrollerar manuellt att betalningen har kommit in. Ordern behandlas först efter det. Det kan ta en stund." },
   paid: { title: "Betalning mottagen", text: "Vi har kontrollerat din betalning och förbereder ordern." },
   packed: { title: "Packas", text: "Din order packas just nu." },
