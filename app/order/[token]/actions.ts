@@ -16,7 +16,7 @@ export async function reportPaid(formData: FormData) {
   const token = String(formData.get("token") ?? "");
   if (!UUID.test(token)) redirect("/");
   const ip = ((await headers()).get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
-  if (!rateLimit(`report:${ip}`, 10, 10 * 60_000)) redirect(`/order/${token}?fel=1`);
+  if (!(await rateLimit(`report:${ip}`, 10, 10 * 60_000))) redirect(`/order/${token}?fel=1`);
 
   const sb = createAdminClient();
   const { data, error } = await sb.rpc("report_payment", { p_guest_token: token });
