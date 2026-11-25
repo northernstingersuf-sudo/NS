@@ -21,6 +21,8 @@ Next.js App Router, React, TypeScript, Tailwind CSS och Supabase. Projektet utve
    - `0011_newsletter_withdrawal.sql`
    - `0012_newsletter_double_opt_in.sql`
    - `0013_checkout_total_guard.sql`
+   - `0014_sprint02_operations.sql`
+   - `20261125180652_variant_inventory_and_images.sql`
 5. Starta utvecklingsservern med `npm run dev`.
 6. Skapa ett konto via `/logga-in`. Ge sedan kontot adminroll från Supabase SQL Editor:
    ```sql
@@ -170,7 +172,14 @@ Migrationerna skapar följande exempelprodukter enligt produktunderlaget:
 - Mono Gäddtafs 3-pack: 20CM 29 kr, 30CM 35 kr, 40CM 39 kr.
 - Fiskevåg 50KG: 199 kr.
 
-Beskrivningar och namn finns på svenska och engelska. Produktbilder saknas i exempelunderlaget och behöver laddas upp till Supabase Storage och kopplas via `product_images`.
+Beskrivningar och namn finns på svenska och engelska. Bilder för exempelprodukterna behöver laddas upp separat.
+
+### Variantlager och bilder
+
+1. Kör samtliga migrationer till och med `20261125180652_variant_inventory_and_images.sql` i staging. Kör databastesterna på en tom testdatabas med `pg_cron` efter migrationerna.
+2. Kör variantmigrationen i måldatabasen före utrullning av appen. Den ställer i ordning bildbehållaren `product-images` i Supabase Storage. Servern använder `SUPABASE_SERVICE_ROLE_KEY` när en administratör laddar upp bilder.
+3. Inventera fysiska enheter per variant. Under **Admin → Lager** flyttar du de inventerade enheterna från gemensamt saldo till respektive variant. Ange 0 för att börja spåra en slutsåld variant. Äldre varianter utan eget saldo använder gemensamt saldo tills du räknat och flyttat deras enheter. Öppna reservationer hanteras mot sitt ursprungliga saldo. Nya varianter börjar med 0 i lager.
+4. Under **Admin → Produkter → Redigera → Variantbilder** laddar du upp två till tre JPEG-, PNG- eller WebP-bilder per variant och väljer huvudbild.
 
 ## Betalning och notiser
 

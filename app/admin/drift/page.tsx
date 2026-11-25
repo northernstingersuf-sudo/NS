@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/admin";
 import { operationalSignals } from "@/lib/operational-monitoring";
+import { stockByScope } from "@/lib/stock";
 
 export const metadata = { title: "Driftstatus – Admin", robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
@@ -14,7 +15,7 @@ export default async function OperationsPage() {
     if (error) { console.error(`[operations] unable to count ${table} (${error.code})`); return null; }
     return count ?? 0;
   };
-  const [lastRun, policy, expiredOrders, reported, emails, discord, stock] = await Promise.all([
+  const [lastRun, policy, expiredOrders, reported, emails, discord, stock, products] = await Promise.all([
     sb.from("system_job_runs").select("created_at,processed").eq("job_name", "expire_unpaid_orders")
       .order("created_at", { ascending: false }).limit(1).maybeSingle(),
     sb.from("shop_settings").select("value").eq("key", "auto_expiry").maybeSingle(),
@@ -29,11 +30,18 @@ export default async function OperationsPage() {
     count("payments", q => q.eq("status", "initiated").not("reported_at", "is", null)),
     count("email_log", q => q.eq("status", "failed")),
     count("notification_log", q => q.eq("status", "failed")),
-    sb.from("inventory").select("quantity,reserved,low_stock_threshold").limit(1000),
+    sb.from("stock_balances").select("variant_id,quantity,reserved,low_stock_threshold,product_id").limit(1000),
+    sb.from("products").select("id,product_variants(id,active)").eq("active", true),
   ]);
 
-  const lowStock = stock.error ? null
-    : (stock.data ?? []).filter(x => x.quantity - x.reserved <= (x.low_stock_threshold ?? 3)).length;
+  const balances = stockByScope(stock.data ?? []);
+  const lowStock = stock.error || products.error ? null : (products.data ?? []).reduce((total, product) => {
+    const variants = product.product_variants.filter(variant => variant.active);
+    const ownBalances = variants.flatMap(variant => balances.variants.get(variant.id) ?? []);
+    const shared = balances.products.get(product.id);
+    if (shared && (variants.length === 0 || ownBalances.length < variants.length)) ownBalances.push(shared);
+    return total + ownBalances.filter(row => row.quantity - row.reserved <= (row.low_stock_threshold ?? 3)).length;
+  }, 0);
   const signals = operationalSignals({
     now, lastExpiryRun: lastRun.error ? null : lastRun.data?.created_at ?? null,
     expiryEnabled: policy.error || !policy.data ? null : (policy.data.value as { enabled?: boolean })?.enabled === true,

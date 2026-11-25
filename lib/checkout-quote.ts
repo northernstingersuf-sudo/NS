@@ -1,8 +1,9 @@
 /** Pure checkout pricing. The database create_order_checked function remains final authority. */
+import { stockByScope, type StockBalance } from "./stock";
+
 export type BasketItem = { id: string; qty: number };
 export type QuoteProduct = { id: string; name_sv: string; price_ore: number; in_stock: boolean; active: boolean };
 export type QuoteVariant = { id: string; product_id: string; label: string; price_ore: number; in_stock: boolean; active: boolean };
-export type QuoteInventory = { product_id: string; quantity: number; reserved: number };
 export type QuoteDiscount = { percent: number | null; amount_ore: number | null; active: boolean; expires_at: string | null; max_uses: number | null; used: number };
 export type QuoteShipping = { flat_ore: number; free_over_ore: number | null };
 export type QuoteLine = { id: string; name: string; variant: string | null; unit_ore: number; qty: number };
@@ -44,7 +45,7 @@ export function calculateCheckoutQuote(args: {
   products: QuoteProduct[];
   variants: QuoteVariant[];
   activeVariantProductIds: string[];
-  inventory: QuoteInventory[];
+  inventory: StockBalance[];
   discountCode: string | null;
   discount: QuoteDiscount | null;
   shipping: QuoteShipping;
@@ -57,8 +58,8 @@ export function calculateCheckoutQuote(args: {
   const byProduct = new Map(products.map(p => [p.id, p]));
   const byVariant = new Map(variants.map(v => [v.id, v]));
   const activeVariants = new Set(activeVariantProductIds);
-  const inventoryByProduct = new Map(inventory.map(s => [s.product_id, s]));
-  const reservedByProduct = new Map<string, number>();
+  const balances = stockByScope(inventory);
+  const requested = new Map<StockBalance, number>();
   const lines: QuoteLine[] = [];
   let subtotal = 0;
   for (const item of items) {
@@ -72,13 +73,13 @@ export function calculateCheckoutQuote(args: {
       return fail("Kunde inte kontrollera produktpriset.");
     subtotal += price * item.qty;
     if (!Number.isSafeInteger(subtotal) || subtotal > MAX_INT) return fail("Orderbeloppet är för stort.");
-    reservedByProduct.set(product.id, (reservedByProduct.get(product.id) ?? 0) + item.qty);
+    const balance = (variant && balances.variants.get(variant.id)) || balances.products.get(product.id);
+    if (balance) requested.set(balance, (requested.get(balance) ?? 0) + item.qty);
     lines.push({ id: item.id, name: product.name_sv, variant: variant?.label ?? null, unit_ore: price, qty: item.qty });
   }
-  for (const [productId, qty] of reservedByProduct) {
-    const stock = inventoryByProduct.get(productId);
-    if (stock && (!Number.isInteger(stock.quantity) || !Number.isInteger(stock.reserved) ||
-                  stock.quantity - stock.reserved < qty))
+  for (const [stock, qty] of requested) {
+    if (!Number.isInteger(stock.quantity) || !Number.isInteger(stock.reserved) ||
+        stock.quantity - stock.reserved < qty)
       return fail("Lagersaldot har ändrats. Uppdatera varukorgen och försök igen.");
   }
 

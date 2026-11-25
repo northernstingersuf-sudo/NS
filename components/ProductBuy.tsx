@@ -3,16 +3,9 @@
 
 import Image from "next/image";
 import { useCart } from "./CartProvider";
-import { sek, type Variant } from "@/lib/catalog";
-import { useEffect, useRef, useState } from "react";
-
-type VariantImage = {
-  id: string;
-  variant_id: string | null;
-  url: string;
-  alt_sv: string | null;
-  position: number;
-};
+import type { ProductImage, Variant } from "@/lib/catalog";
+import { sek } from "@/lib/money";
+import { useState } from "react";
 
 type Props = {
   id: string;
@@ -24,7 +17,7 @@ type Props = {
   baseCompare: number | null;
   baseInStock: boolean;
   variants: Variant[];
-  images: VariantImage[];
+  images: ProductImage[];
 };
 
 export default function ProductBuy({
@@ -41,62 +34,37 @@ export default function ProductBuy({
 }: Props) {
   const { add } = useCart();
   const [sel, setSel] = useState(
-    Math.max(0, variants.findIndex((v) => v.in_stock))
+    () => Math.max(0, variants.findIndex(v => v.in_stock))
   );
-  const [done, setDone] = useState(false);
-
-  const imageRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const el = imageRef.current;
-    if (!el) return;
-
-    el.animate(
-      [
-        { opacity: 0, transform: "scale(0.94)" },
-        { opacity: 1, transform: "scale(1)" },
-      ],
-      {
-        duration: 400,
-        easing: "ease-out",
-        fill: "both",
-      }
-    );
-  }, [sel]);
+  const [imageIndex, setImageIndex] = useState(0);
+  const [announcement, setAnnouncement] = useState("");
 
   const v = variants[sel];
   const price = v ? v.price_ore : basePrice;
   const compare = v ? v.compare_price_ore : baseCompare;
   const ok = v ? v.in_stock : baseInStock;
-  const multi = variants.length > 1;
+  const variantImages = v ? images.filter(img => img.variant_id === v.id) : [];
+  const sharedImages = images.filter(img => img.variant_id === null);
+  const gallery = variantImages.length ? variantImages : sharedImages;
+  const image = gallery[imageIndex] ?? gallery[0];
 
-  const sortedImages = [...images].sort(
-    (a, b) => a.position - b.position
-  );
-
-  const image =
-    (v && sortedImages.find((img) => img.variant_id === v.id)) ??
-    sortedImages.find((img) => img.variant_id === null) ??
-    (variants.length === 0 ? sortedImages[0] : undefined);
+  function stepImage(delta: number) {
+    setImageIndex(index => (index + delta + gallery.length) % gallery.length);
+  }
 
   return (
     <div className="mx-auto grid max-w-6xl gap-8 px-5 pt-8 sm:px-8 lg:grid-cols-[1.3fr_1fr] lg:gap-12 lg:pt-12">
-      <div className="min-w-0">
+      <section className="min-w-0" aria-label="Produktbilder">
         <div className="relative aspect-square w-full overflow-hidden bg-fog">
           {image ? (
-            <div
-              ref={imageRef}
-              className="absolute inset-0"
-            >
-              <Image
-                src={image.url}
-                alt={image.alt_sv ?? name}
-                fill
-                priority
-                sizes="(min-width:1024px) 55vw, 100vw"
-                className="object-contain p-6"
-              />
-            </div>
+            <Image
+              src={image.url}
+              alt={image.alt_sv ?? (v ? name + " – " + v.label : name)}
+              fill
+              priority={imageIndex === 0}
+              sizes="(min-width: 1024px) 55vw, 100vw"
+              className="object-contain p-6"
+            />
           ) : (
             <Image
               src="/logo/n-black.webp"
@@ -106,8 +74,33 @@ export default function ProductBuy({
               className="absolute inset-0 m-auto opacity-10"
             />
           )}
+          {gallery.length > 1 && (
+            <div className="absolute inset-x-3 bottom-3 flex items-center justify-between gap-2">
+              <button type="button" onClick={() => stepImage(-1)} aria-label="Föregående bild"
+                className="h-11 w-11 border border-line bg-paper text-lg">←</button>
+              <span aria-live="polite" className="bg-paper px-3 py-1 font-mono text-xs">
+                Bild {imageIndex + 1} av {gallery.length}
+              </span>
+              <button type="button" onClick={() => stepImage(1)} aria-label="Nästa bild"
+                className="h-11 w-11 border border-line bg-paper text-lg">→</button>
+            </div>
+          )}
         </div>
-      </div>
+        {gallery.length > 1 && (
+          <ul className="mt-3 flex flex-wrap gap-2">
+            {gallery.map((thumbnail, index) => (
+              <li key={thumbnail.id}>
+                <button type="button" aria-pressed={index === imageIndex}
+                  aria-label={"Visa bild " + (index + 1) + (thumbnail.alt_sv ? ", " + thumbnail.alt_sv : "")}
+                  onClick={() => setImageIndex(index)}
+                  className={"relative block h-16 w-16 border bg-fog sm:h-20 sm:w-20 " + (index === imageIndex ? "border-ink" : "border-line hover:border-ink")}>
+                  <Image src={thumbnail.url} alt="" fill sizes="80px" className="object-contain p-2" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       <div className="min-w-0 lg:sticky lg:top-24 lg:self-start">
         {categoryName && (
@@ -127,11 +120,11 @@ export default function ProductBuy({
           {sek(price)}
         </p>
 
-        <p className="mt-2 font-mono text-xs text-mute">
+        <p role="status" className="mt-2 font-mono text-xs text-mute">
           {ok ? "● Varan finns i lager" : "○ Slut i lager"}
         </p>
 
-        {multi && (
+        {variants.length > 0 && (
           <fieldset className="mt-8">
             <legend className="mb-3 font-mono text-[11px] uppercase tracking-wider text-mute">
               Variant
@@ -142,16 +135,20 @@ export default function ProductBuy({
                 <button
                   key={x.id}
                   type="button"
-                  disabled={!x.in_stock}
                   aria-pressed={i === sel}
-                  onClick={() => setSel(i)}
-                  className={`border px-5 py-2 font-mono text-xs transition-colors disabled:text-mute disabled:line-through ${
+                  onClick={() => {
+                    if (i === sel) return;
+                    setSel(i);
+                    setImageIndex(0);
+                    setAnnouncement("");
+                  }}
+                  className={`border px-5 py-2 font-mono text-xs transition-colors ${
                     i === sel
                       ? "border-ink bg-ink text-paper"
                       : "border-line hover:border-ink"
                   }`}
                 >
-                  {x.label} · {sek(x.price_ore)}
+                  {x.label} · {sek(x.price_ore)}{!x.in_stock && " · Slut i lager"}
                 </button>
               ))}
             </div>
@@ -160,27 +157,24 @@ export default function ProductBuy({
 
         <button
           disabled={!ok}
-          aria-live="polite"
           onClick={() => {
             add({
               id: v?.id ?? id,
               slug,
-              name: multi && v ? `${name} – ${v.label}` : name,
+              name: v ? `${name} – ${v.label}` : name,
               price_ore: price,
             });
-            setDone(true);
-            setTimeout(() => setDone(false), 1800);
+            setAnnouncement((v ? name + " – " + v.label : name) + " lades i varukorgen.");
           }}
           className="mt-8 w-full bg-ink py-4 font-mono text-xs uppercase tracking-wider text-paper disabled:bg-line disabled:text-mute"
         >
           {!ok
             ? "Slut i lager"
-            : done
-              ? "Tillagd ✓"
-              : `Lägg i varukorgen · ${sek(price)}`}
+            : `Lägg i varukorgen · ${sek(price)}`}
         </button>
+        <p role="status" className="mt-2 min-h-5 text-sm">{announcement}</p>
 
-        <div className="mt-10 border-t border-line pt-6">
+        <div className="mt-8 border-t border-line pt-6">
           <h2 className="mb-3 font-mono text-[11px] uppercase tracking-wider text-mute">
             Beskrivning
           </h2>
