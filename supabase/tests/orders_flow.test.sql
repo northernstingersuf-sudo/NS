@@ -1,4 +1,4 @@
--- Databastest för 0006–0014. Körs mot en TOM lokal testdatabas efter 00_local_bootstrap.sql + migrationerna 0001–0006.
+-- Databastest. Körs mot en tom lokal testdatabas efter 00_local_bootstrap.sql och samtliga migrationer.
 -- Aldrig mot produktion. Avbryter med fel vid första misslyckade kontroll.
 \set ON_ERROR_STOP on
 \set QUIET on
@@ -69,9 +69,13 @@ select pg_temp.ok((select (j->>'total_ore')::int from r1) = 2*3500 + 19900 + 490
 select pg_temp.ok((select (j->>'created')::boolean from r1), 'första anropet skapar order');
 select pg_temp.ok((select j->>'order_number' from r1) ~ '^NS-20[0-9]{2}-[0-9]{6}$', 'ordernummer har formatet NS-ÅÅÅÅ-NNNNNN');
 
-create temp table r1b as select create_order('key-order-one-000000000001', null, 'x@x.se', 'sv', '{}', jsonb_build_array(jsonb_build_object('id', (select p_fv from ids), 'qty', 9))) as j;
+create temp table r1b as select create_order('key-order-one-000000000001', '00000000-0000-0000-0000-0000000000c1', 'x@x.se', 'sv', '{}', jsonb_build_array(jsonb_build_object('id', (select p_fv from ids), 'qty', 9))) as j;
 select pg_temp.ok((select j->>'order_id' from r1b) = (select j->>'order_id' from r1) and not (select (j->>'created')::boolean from r1b),
   'samma idempotensnyckel ger samma order (ingen dubblett)');
+select pg_temp.fails($q$ select create_order('key-order-one-000000000001', '00000000-0000-0000-0000-0000000000c2', 'x@x.se', 'sv', '{}', '[]') $q$,
+  'invalid_idempotency_key', 'en annan kund får ingen order vid replay');
+select pg_temp.fails($q$ select create_order('key-order-one-000000000001', null, 'x@x.se', 'sv', '{}', '[]') $q$,
+  'invalid_idempotency_key', 'gäster får ingen inloggad kundorder vid replay');
 reset role;
 select pg_temp.ok((select count(*) from orders) = 1, 'exakt en order efter replay');
 select pg_temp.ok((select email from orders) = 'kund1@test.se', 'e-post normaliseras till gemener');
@@ -302,7 +306,7 @@ set role authenticated; set request.jwt.claim.sub = '00000000-0000-0000-0000-000
 select admin_save_product(jsonb_build_object('id', (select p_ks from ids), 'slug', 'kedje-stinger', 'name_sv', 'Kedje Stinger', 'price_ore', 2900, 'active', true),
   '[{"label":"MEDIUM","price_ore":3500,"position":1}]'::jsonb);
 reset role;
-select pg_temp.ok((select count(*) from product_variants where product_id = (select p_ks from ids)) = 1, 'borttagna varianter raderas');
+select pg_temp.ok((select count(*) from product_variants where product_id = (select p_ks from ids) and active) = 1, 'varianter som tas ur sortimentet inaktiveras');
 select pg_temp.ok((select count(*) from order_items where sku = 'NS-KS-M' and variant_id is not null) >= 1, 'orderrader behåller kopplingen till kvarvarande variant');
 
 -- paid → shipped direkt (utan packa-steg) ska gå och dra av lager
@@ -400,7 +404,7 @@ select pg_temp.ok((select reserved from inventory where product_id = (select p_f
 select pg_temp.ok((select count(*) from cron.job
   where jobname='northern-stingers-expire-unpaid-orders')=1,
  'femminuters-cron är registrerad');
-\n
+
 
 -- ---- Sprint 01: expected-total guard (migration 0013) ----
 -- A mismatched quote must roll back the entire create_order transaction.
@@ -420,5 +424,92 @@ create temp table r_checked as select create_order_checked(
 select pg_temp.ok((select (j->>'total_ore')::integer from r_checked) = 24800,
   'korrekt kontrollerad totalsumma skapar order');
 reset role;
+
+-- ---- Varianter, äldre reservationer och bildgalleri ----
+insert into public.inventory (product_id, quantity)
+values ((select p_ks from ids), 10)
+on conflict (product_id) do update set quantity = 10, reserved = 0;
+
+set role service_role;
+create temp table legacy_variant_order as select create_order('variant-legacy-balance-001', null, 'legacy@test.se', 'sv', '{}',
+  jsonb_build_array(jsonb_build_object('id', (select v_ks_m from ids), 'qty', 2))) as j;
+reset role;
+select pg_temp.share();
+
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000a1';
+set role authenticated;
+select admin_adjust_variant_stock((select v_ks_m from ids), 6, 'Inventerad variant', true);
+select admin_adjust_variant_stock((select v_ks_l from ids), 1, 'Inventerad variant', true);
+select pg_temp.fails($q$ select admin_adjust_variant_stock((select v_ks_l from ids), 2, 'Inventerad variant', true) $q$,
+  'insufficient_shared_stock', 'reserverade enheter kan inte flyttas från det gemensamma saldot');
+select admin_update_order((select (j->>'order_id')::uuid from legacy_variant_order), 'cancelled');
+select admin_save_product(
+  jsonb_build_object('id', (select p_ks from ids), 'slug', 'kedje-stinger', 'name_sv', 'Kedje Stinger', 'price_ore', 2900, 'active', true),
+  jsonb_build_array(jsonb_build_object('id', (select v_ks_m from ids), 'label', 'M', 'price_ore', 3500),
+                    jsonb_build_object('id', (select v_ks_l from ids), 'label', 'L', 'price_ore', 3900)));
+
+select admin_manage_variant_image((select v_ks_m from ids), 'add', null, 'https://example.supabase.co/storage/v1/object/public/product-images/a.webp', 'Första');
+select admin_manage_variant_image((select v_ks_m from ids), 'add', null, 'https://example.supabase.co/storage/v1/object/public/product-images/b.webp', 'Andra');
+select admin_manage_variant_image((select v_ks_m from ids), 'add', null, 'https://example.supabase.co/storage/v1/object/public/product-images/c.webp', 'Tredje');
+select pg_temp.fails($q$ select admin_manage_variant_image((select v_ks_m from ids), 'add', null,
+  'https://example.supabase.co/storage/v1/object/public/product-images/d.webp') $q$,
+  'variant_image_limit', 'fjärde bilden nekas');
+select admin_manage_variant_image((select v_ks_m from ids), 'cover', (select id from product_images where alt_sv = 'Andra'));
+select pg_temp.ok((select alt_sv from product_images where variant_id = (select v_ks_m from ids) order by position limit 1) = 'Andra',
+  'vald huvudbild visas först');
+select pg_temp.fails($q$ select admin_manage_variant_image((select v_ks_l from ids), 'remove',
+  (select id from product_images where alt_sv = 'Andra')) $q$,
+  'image_not_found', 'bilden kan bara ändras via sin egen variant');
+select admin_manage_variant_image((select v_ks_m from ids), 'remove', (select id from product_images where alt_sv = 'Tredje'));
+select pg_temp.ok((select count(*) from product_images where variant_id = (select v_ks_m from ids)) = 2, 'bild kan tas bort');
+reset role;
+
+select pg_temp.ok((select quantity = 3 and reserved = 0 from inventory where product_id = (select p_ks from ids)),
+  'äldre reservation frigörs till det gemensamma saldot');
+select pg_temp.ok((select quantity = 6 and reserved = 0 from variant_inventory where variant_id = (select v_ks_m from ids)),
+  'variant behåller saldo och ID vid namnbyte');
+
+set role service_role;
+select pg_temp.ok((select count(*) from stock_balances where variant_id is not null) >= 2, 'kassan kan läsa variantsaldon');
+select pg_temp.fails($q$ select create_order('variant-out-of-stock-0001', null, 'guest@test.se', 'sv', '{}',
+  jsonb_build_array(jsonb_build_object('id', (select v_ks_l from ids), 'qty', 2))) $q$,
+  'insufficient_stock', 'slutsåld variant kan inte låna av en annan variant eller gemensamt saldo');
+create temp table variant_orders as
+  select 1 as n, create_order('variant-order-ship-00001', '00000000-0000-0000-0000-0000000000c1', 'kund1@test.se', 'sv', '{}',
+    jsonb_build_array(jsonb_build_object('id', (select v_ks_m from ids), 'qty', 2))) as j
+  union all
+  select 2, create_order('variant-order-refund-001', '00000000-0000-0000-0000-0000000000c2', 'kund2@test.se', 'sv', '{}',
+    jsonb_build_array(jsonb_build_object('id', (select v_ks_m from ids), 'qty', 1)))
+  union all
+  select 3, create_order('variant-order-expire-001', null, 'expire-variant@test.se', 'sv', '{}',
+    jsonb_build_array(jsonb_build_object('id', (select v_ks_l from ids), 'qty', 1)));
+reset role;
+select pg_temp.share();
+select pg_temp.ok((select quantity = 6 and reserved = 3 from variant_inventory where variant_id = (select v_ks_m from ids)),
+  'nya order reserverar mot det egna variantsaldot');
+
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000c2';
+set role authenticated;
+select pg_temp.ok((select count(*) from orders) = 1 and (select count(*) from order_items) = 1, 'kund 2 ser bara sin egen order och orderrad');
+select pg_temp.ok((select count(*) from public.stock_balances) = 0, 'kund kan inte läsa intern lagerinformation');
+select pg_temp.fails($q$ select admin_adjust_variant_stock((select v_ks_m from ids), 1, 'Justering') $q$,
+  '42501', 'kund kan inte ändra variantlager');
+select pg_temp.fails($q$ select admin_manage_variant_image((select v_ks_m from ids), 'remove') $q$,
+  '42501', 'kund kan inte ändra variantbilder');
+reset role;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000a1';
+set role authenticated;
+select admin_verify_payment((select (j->>'order_id')::uuid from variant_orders where n = 1), (select (j->>'total_ore')::int from variant_orders where n = 1));
+select admin_update_order((select (j->>'order_id')::uuid from variant_orders where n = 1), 'shipped');
+select admin_verify_payment((select (j->>'order_id')::uuid from variant_orders where n = 2), (select (j->>'total_ore')::int from variant_orders where n = 2));
+select admin_register_refund((select (j->>'order_id')::uuid from variant_orders where n = 2), (select (j->>'total_ore')::int from variant_orders where n = 2));
+reset role;
+select pg_temp.ok((select quantity = 4 and reserved = 0 from variant_inventory where variant_id = (select v_ks_m from ids)),
+  'leverans drar lagersaldo och hel återbetalning släpper reservationen');
+select pg_temp.ok(private.expire_unpaid_orders(100, now() + interval '25 hours') >= 1, 'cron avbokar utgången variantorder');
+select pg_temp.ok((select quantity = 1 and reserved = 0 from variant_inventory where variant_id = (select v_ks_l from ids)),
+  'automatiskt avbrott frigör variantens reservation');
+select pg_temp.ok((select quantity = 3 and reserved = 0 from inventory where product_id = (select p_ks from ids)),
+  'variantorder påverkar inte det gemensamma saldot');
 
 \echo ALLA DB-TESTER GICK IGENOM

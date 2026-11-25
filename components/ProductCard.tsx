@@ -1,9 +1,10 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Product, sek, fromPrice, toPrice, inStock, variantsOf } from "@/lib/products";
+import { type Product, fromPrice, toPrice, inStock, variantsOf, productCover } from "@/lib/catalog";
+import { sek } from "@/lib/money";
 
 export default function ProductCard({ p }: { p: Product }) {
-  const img = [...p.product_images].sort((a, b) => a.position - b.position)[0];
+  const img = productCover(p);
   const from = fromPrice(p);
   const range = toPrice(p) !== from;
   const first = variantsOf(p)[0];

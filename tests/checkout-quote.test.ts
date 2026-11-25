@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import type { StockBalance } from "../lib/stock";
 import { calculateCheckoutQuote, validateQuoteRequest } from "../lib/checkout-quote";
 
 const A = "0f8fad5b-d9cb-469f-a165-70867728950e";
@@ -10,7 +11,7 @@ const variantProduct = { id: B, name_sv: "Stinger", price_ore: 2900, in_stock: t
 const variant = { id: V, product_id: B, label: "MEDIUM", price_ore: 3500, active: true, in_stock: true };
 const basic = () => ({
   items: [{ id: A, qty: 1 }], products: [product, variantProduct], variants: [variant],
-  activeVariantProductIds: [B], inventory: [] as { product_id: string; quantity: number; reserved: number }[],
+  activeVariantProductIds: [B], inventory: [] as StockBalance[],
   discountCode: null as string | null,
   discount: null as { percent: number | null; amount_ore: number | null; active: boolean; expires_at: string | null; max_uses: number | null; used: number } | null,
   shipping: { flat_ore: 4900, free_over_ore: 50000 as number | null },
@@ -55,9 +56,24 @@ test("inactive variants and direct purchases of variant products are blocked", (
   bad(calculateCheckoutQuote({ ...basic(), items: [{ id: "2c483a78-1f3b-4219-a5fa-91f73ac954c4", qty: 1 }] }));
 });
 test("product inventory availability is checked across variants", () => {
-  const args = { ...basic(), items: [{ id: V, qty: 2 }, { id: A, qty: 1 }], inventory: [{ product_id: B, quantity: 2, reserved: 1 }] };
+  const args = { ...basic(), items: [{ id: V, qty: 2 }, { id: A, qty: 1 }], inventory: [{ product_id: B, variant_id: null, quantity: 2, reserved: 1 }] };
   bad(calculateCheckoutQuote(args));
-  good(calculateCheckoutQuote({ ...args, inventory: [{ product_id: B, quantity: 3, reserved: 1 }] }));
+  good(calculateCheckoutQuote({ ...args, inventory: [{ product_id: B, variant_id: null, quantity: 3, reserved: 1 }] }));
+});
+test("tracked variants use their own balance while older variants share remaining stock", () => {
+  const second = { ...variant, id: "a5eae973-a7dc-4b31-8caf-8ae95527e7c3", label: "LARGE" };
+  const shared = { product_id: B, variant_id: null, quantity: 2, reserved: 1 };
+  const own = { product_id: B, variant_id: V, quantity: 3, reserved: 1 };
+  const args = {
+    ...basic(), variants: [variant, second],
+    items: [{ id: V, qty: 2 }, { id: second.id, qty: 1 }],
+  };
+  good(calculateCheckoutQuote({ ...args, inventory: [shared, own] }));
+  bad(calculateCheckoutQuote({ ...args, inventory: [shared] }));
+  bad(calculateCheckoutQuote({ ...args, inventory: [shared, { ...own, quantity: 2 }] }));
+  bad(calculateCheckoutQuote({
+    ...args, inventory: [{ ...shared, quantity: 20 }, { ...own, quantity: 1 }],
+  }));
 });
 test("percentage discounts truncate fractional öre like PostgreSQL integer division", () => {
   const args = basic();

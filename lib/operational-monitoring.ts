@@ -32,6 +32,6 @@ export function operationalSignals(x: OperationalInputs): OperationalSignal[] {
     countSignal("Betalningar rapporterade för kontroll", x.reportedPayments, "Dessa order autoavbokas inte; verifiera Swish manuellt."),
     countSignal("Misslyckade kundmejl", x.failedEmails, "Öppna ordern och försök skicka mejlet igen."),
     countSignal("Misslyckade Discord-notiser", x.failedDiscord, "Öppna ordern och försök skicka notisen igen."),
-    countSignal("Produkter med lågt tillgängligt lager", x.lowStockProducts, "Kontrollera lager: saldo minus reservationer."),
+    countSignal("Produkter och varianter med lågt lager", x.lowStockProducts, "Kontrollera tillgängligt saldo i lageröversikten."),
   ];
 }

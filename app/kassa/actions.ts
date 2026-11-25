@@ -44,7 +44,7 @@ export async function quoteCheckout(rawItems: unknown, rawDiscountCode: unknown)
     const [productsResult, activeResult, inventoryResult, discountResult] = await Promise.all([
       sb.from("products").select("id,name_sv,price_ore,in_stock,active").in("id", productIds),
       sb.from("product_variants").select("product_id").in("product_id", productIds).eq("active", true),
-      sb.from("inventory").select("product_id,quantity,reserved").in("product_id", productIds),
+      sb.from("stock_balances").select("product_id,variant_id,quantity,reserved").in("product_id", productIds),
       discountCode
         ? sb.from("discounts").select("code,percent,amount_ore,active,expires_at,max_uses,used")
             .ilike("code", discountCode).limit(50)

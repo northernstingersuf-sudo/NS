@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/admin";
 
@@ -14,16 +15,23 @@ function parseMoney(raw: string, required: boolean): number | null {
   return ore;
 }
 
-function parseVariants(raw: string) {
-  return raw.split("\n").map((line, index) => line.trim()).filter(Boolean).map((line, index) => {
-    const [labelRaw, priceRaw, skuRaw = ""] = line.split("|").map((part) => part.trim());
-    if (!labelRaw || !priceRaw) throw new Error(`Variant på rad ${index + 1} måste ha formatet NAMN | PRIS | SKU.`);
-    const price = parseMoney(priceRaw, true);
-    if (price === null) throw new Error(`Variant på rad ${index + 1} saknar pris.`);
+const UUID = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
+
+function parseVariants(formData: FormData) {
+  const keys = formData.getAll("variant_row");
+  if (keys.length > 100 || new Set(keys).size !== keys.length) throw new Error("Ogiltig variantlista.");
+  return keys.map((key, index) => {
+    if (typeof key !== "string" || (!UUID.test(key) && !/^new-\d+$/.test(key))) throw new Error("Ogiltig variant.");
+    const label = value(formData, key + "_label");
+    const price = parseMoney(value(formData, key + "_price"), true);
+    if (!label || price === null) throw new Error("Ange namn och pris för varje variant.");
     return {
-      label: labelRaw.slice(0, 80),
+      id: UUID.test(key) ? key : null,
+      label: label.slice(0, 80),
       price_ore: price,
-      sku: skuRaw.slice(0, 80) || null,
+      sku: value(formData, key + "_sku").slice(0, 80) || null,
+      active: formData.has(key + "_active"),
+      in_stock: formData.has(key + "_in_stock"),
       position: index + 1,
     };
   });
@@ -31,21 +39,26 @@ function parseVariants(raw: string) {
 
 export async function saveProduct(formData: FormData) {
   const { sb } = await requireAdmin();
+  const id = value(formData, "id");
+  const editPath = UUID.test(id) ? "/admin/produkter/" + id : "/admin/produkter/ny";
+  let savedId: string;
   try {
+    if (id && !UUID.test(id)) throw new Error("Ogiltigt produkt-ID.");
     const nameSv = value(formData, "name_sv");
     const slug = value(formData, "slug").toLowerCase();
     if (!nameSv || !slug) throw new Error("Svenskt produktnamn och URL-slug krävs.");
     if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) throw new Error("URL-slug får bara innehålla små bokstäver, siffror och bindestreck.");
 
     const categoryId = value(formData, "category_id");
-    const variants = parseVariants(value(formData, "variant_lines"));
-    const enteredBasePrice = parseMoney(value(formData, "price"), variants.length === 0);
+    const variants = parseVariants(formData);
+    const activeVariants = variants.filter(variant => variant.active);
+    const enteredBasePrice = parseMoney(value(formData, "price"), activeVariants.length === 0);
     const comparePrice = parseMoney(value(formData, "compare_price"), false);
-    const basePrice = enteredBasePrice ?? Math.min(...variants.map((v) => v.price_ore));
+    const basePrice = enteredBasePrice ?? Math.min(...activeVariants.map((v) => v.price_ore));
     if (comparePrice !== null && comparePrice <= basePrice) throw new Error("Jämförelsepriset måste vara högre än ordinarie pris.");
 
     const product = {
-      id: value(formData, "id") || null,
+      id: id || null,
       slug,
       sku: value(formData, "sku") || null,
       category_id: categoryId || null,
@@ -63,16 +76,20 @@ export async function saveProduct(formData: FormData) {
       seo_desc_en: value(formData, "seo_desc_en").slice(0, 300) || null,
     };
 
-    const { error } = await sb.rpc("admin_save_product", {
+    const { data, error } = await sb.rpc("admin_save_product", {
       p_product: product,
       p_variants: variants,
     });
-    if (error) throw new Error(error.message);
+    if (error || typeof data !== "string") throw new Error(error?.message ?? "Kunde inte spara produkten.");
+    savedId = data;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Kunde inte spara produkten.";
-    redirect(`/admin/produkter?fel=${encodeURIComponent(message.slice(0, 180))}`);
+    redirect(editPath + "?fel=" + encodeURIComponent(message.slice(0, 180)));
   }
-  redirect("/admin/produkter?sparad=1");
+  revalidatePath("/");
+  revalidatePath("/produkter");
+  revalidatePath("/produkter/[slug]", "page");
+  redirect("/admin/produkter/" + savedId + "?sparad=1");
 }
 
 export async function setProductActive(formData: FormData) {

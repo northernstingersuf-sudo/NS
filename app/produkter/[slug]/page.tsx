@@ -7,6 +7,8 @@ import {
   fromPrice,
   toPrice,
   inStock,
+  productCover,
+  productImages,
 } from "@/lib/products";
 import ProductBuy from "@/components/ProductBuy";
 
@@ -19,6 +21,7 @@ export async function generateMetadata({
   const p = await getProduct(slug);
 
   if (!p) return {};
+  const cover = productCover(p);
 
   return {
     title: p.name_sv,
@@ -27,9 +30,7 @@ export async function generateMetadata({
     openGraph: {
       title: p.name_sv,
       description: p.description_sv?.slice(0, 155) ?? undefined,
-      images: p.product_images[0]
-        ? [p.product_images[0].url]
-        : undefined,
+      images: cover ? [cover.url] : undefined,
     },
   };
 }
@@ -39,9 +40,7 @@ export default async function ProductPage({ params }: Props) {
 
   if (!p) notFound();
 
-  const imgs = [...p.product_images].sort(
-    (a, b) => a.position - b.position
-  );
+  const imgs = productImages(p);
   const variants = variantsOf(p);
 
   const ld = {
@@ -72,6 +71,7 @@ export default async function ProductPage({ params }: Props) {
       />
 
       <ProductBuy
+        key={p.id}
         id={p.id}
         slug={p.slug}
         name={p.name_sv}

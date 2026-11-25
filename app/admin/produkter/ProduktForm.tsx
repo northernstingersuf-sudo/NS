@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { saveProduct } from "./actions";
+import VariantFields, { type EditableVariant } from "./VariantFields";
 
 type CategoryOption = { id: string; name_sv: string };
-type VariantOption = { label: string; price_ore: number; sku: string | null };
 type ProductFormData = {
   id?: string;
   slug?: string;
@@ -29,9 +29,8 @@ const money = (ore?: number | null) => ore == null ? "" : (ore / 100).toFixed(2)
 export default function ProductForm({ categories, product, variants = [] }: {
   categories: CategoryOption[];
   product?: ProductFormData;
-  variants?: VariantOption[];
+  variants?: EditableVariant[];
 }) {
-  const variantText = variants.map((v) => `${v.label} | ${money(v.price_ore)} | ${v.sku ?? ""}`).join("\n");
   return (
     <form action={saveProduct} className="mt-8 space-y-8">
       {product?.id && <input type="hidden" name="id" value={product.id} />}
@@ -54,11 +53,7 @@ export default function ProductForm({ categories, product, variants = [] }: {
         <label className={label}>Description (English)<textarea className={`${input} min-h-32`} name="description_en" maxLength={5000} defaultValue={product?.description_en ?? ""} /></label>
       </section>
 
-      <section>
-        <h2 className="text-lg font-semibold">Varianter</h2>
-        <p className="mt-1 text-sm text-mute">En variant per rad: NAMN | PRIS | SKU. Exempel: SMALL | 29,00 | NS-KS-S. Lämna tomt för en produkt utan varianter.</p>
-        <textarea className={`${input} min-h-36 font-mono`} name="variant_lines" spellCheck={false} defaultValue={variantText} placeholder={'SMALL | 29,00 | NS-KS-S\nMEDIUM | 35,00 | NS-KS-M\nLARGE | 39,00 | NS-KS-L'} />
-      </section>
+      <VariantFields variants={variants} />
 
       <section className="grid gap-5 sm:grid-cols-2">
         <label className={label}>SEO-titel (svenska)<input className={input} name="seo_title_sv" maxLength={180} defaultValue={product?.seo_title_sv ?? ""} /></label>
